@@ -12,6 +12,24 @@
     <meta property="og:description" content="Ranking interactivo con sistema de puntuación ELO, categorías de hombres y mujeres para elegir al más simpático." />
     <meta property="og:image" content="https://api.dicebear.com/7.x/adventurer/svg?seed=ingles-ranking" />
 
+    <!-- SPA Chunk Loader / Asset Recovery Script (Resolves MIME/deployment cache errors) -->
+    <script>
+      window.addEventListener('error', function(e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          var url = e.target.src || e.target.href;
+          if (url && (url.indexOf('/assets/') > -1 || url.indexOf('.js') > -1 || url.indexOf('.css') > -1)) {
+            console.warn('Fallo al cargar recurso estático. Intentando recargar página para limpiar caché...', url);
+            var lastReload = localStorage.getItem('last_asset_reload');
+            var now = Date.now();
+            if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+              localStorage.setItem('last_asset_reload', now.toString());
+              window.location.reload();
+            }
+          }
+        }
+      }, true);
+    </script>
+
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:title" content="INGLES Ciclo I - Ranking de belleza" />

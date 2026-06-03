@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Glassmorphism custom components */
+.glass-panel {
+  background: rgba(14, 14, 23, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(14, 14, 23, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(188, 19, 254, 0.15);
+}
+
+.glow-pink {
+  filter: drop-shadow(0 0 10px rgba(255, 0, 122, 0.45));
+}
+
+.glow-purple {
+  filter: drop-shadow(0 0 10px rgba(188, 19, 254, 0.45));
+}
+
+body {
+  background-color: #030305;
+  color: #f1f1f5;
+  overflow-x: hidden;
+}
+

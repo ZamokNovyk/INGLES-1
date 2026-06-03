@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+             request.auth.token.email == "wikistars12@gmail.com" &&
+             request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidStudent(data) {
+      return data.id is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.genre is string && (data.genre == "women" || data.genre == "men") &&
+             data.elo is number &&
+             data.wins is number &&
+             data.losses is number;
+    }
+
+    function isValidConfig(data) {
+      return data.id is string &&
+             data.isActive is bool;
+    }
+
+    // 2. Collection Rules: Students
+    match /students/{studentId} {
+      allow read: if true;
+      
+      // Admin has full control
+      allow create, delete: if isAdmin() && isValidId(studentId) && isValidStudent(request.resource.data);
+      
+      allow update: if (isAdmin() && isValidStudent(request.resource.data)) || (
+        // Non-admin can ONLY modify 'elo', 'wins', and 'losses'
+        // This is the Tiered Identity / Action-Based Update Pattern (Pillars 4 & 5)
+        isValidId(studentId) &&
+        isValidStudent(request.resource.data) &&
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.name == resource.data.name &&
+        request.resource.data.genre == resource.data.genre &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['elo', 'wins', 'losses'])
+      );
+    }
+
+    // 3. Collection Rules: System Config
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(configId) && isValidConfig(request.resource.data);
+    }
+  }
+}

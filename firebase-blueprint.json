@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "A student profile participating in the MashMatch competitive matching.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the student."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the student."
+        },
+        "genre": {
+          "type": "string",
+          "enum": ["women", "men"],
+          "description": "Gender category of the student (women or men)."
+        },
+        "elo": {
+          "type": "number",
+          "description": "Current ELO matchmaking rating."
+        },
+        "wins": {
+          "type": "number",
+          "description": "Total number of wins."
+        },
+        "losses": {
+          "type": "number",
+          "description": "Total number of defeats."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp of when this profile was registered."
+        }
+      },
+      "required": ["id", "name", "genre", "elo", "wins", "losses"]
+    },
+    "Config": {
+      "title": "System Config",
+      "description": "General system configuration including administrative countdown timers.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document ID (typically 'countdown')."
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "ISO format date-time string when voting ends."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the countdown timer is active or suspended."
+        }
+      },
+      "required": ["id", "isActive"]
+    }
+  },
+  "firestore": {
+    "students/{studentId}": {
+      "schema": "Student",
+      "description": "Collection of all participating students."
+    },
+    "config/{configId}": {
+      "schema": "Config",
+      "description": "General configuration parameters accessed by clients."
+    }
+  }
+}

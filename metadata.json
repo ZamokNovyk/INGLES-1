@@ -1,0 +1,6 @@
+{
+  "name": "MashMatch v4.0",
+  "description": "Una aplicación de emparejamiento competitivo con cálculo ELO persistente en Firebase, estéticas Glassmorphism Neón, animaciones y un show de revelación cinematográfico con audio sintético.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

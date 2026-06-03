@@ -423,9 +423,7 @@ export default function App() {
           <h1 className="text-4xl sm:text-5xl font-black tracking-tighter italic">
             MASHMATCH
           </h1>
-          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 block">
-            • Aula de Adultos • ELO Matchmaker
-          </span>
+
         </div>
 
         {/* Division switcher toggle (♀ vs ♂) */}

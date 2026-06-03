@@ -1,6 +1,6 @@
 {
-  "name": "MashMatch v4.0",
-  "description": "Una aplicación de emparejamiento competitivo con cálculo ELO persistente en Firebase, estéticas Glassmorphism Neón, animaciones y un show de revelación cinematográfico con audio sintético.",
+  "name": "INGLES Ciclo I - Ranking de belleza",
+  "description": "Ranking interactivo con sistema de puntuación ELO, categorías de hombres y mujeres para elegir al más simpático.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

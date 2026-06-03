@@ -1,11 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 1. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // Helper functions
     function isSignedIn() {
       return request.auth != null;
@@ -60,7 +55,8 @@ service cloud.firestore {
       // Allow creation of static config (important for fallback fallback bootstrapping on empty DBs)
       allow create: if isValidId(configId) && isValidConfig(request.resource.data);
       // Only Admin can modify or delete existing configs
-      allow update, delete: if isAdmin() && isValidId(configId) && isValidConfig(request.resource.data);
+      allow update: if isAdmin() && isValidId(configId) && isValidConfig(request.resource.data);
+      allow delete: if isAdmin() && isValidId(configId);
     }
   }
 }

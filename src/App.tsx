@@ -420,10 +420,6 @@ export default function App() {
       {/* HEADER SECTION - Beautiful premium look */}
       <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 pb-4 border-b border-white/5 max-w-7xl mx-auto">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 bg-[#ff007a] shadow-[0_0_12px_#ff007a] rounded-sm"></div>
-            <span className="font-mono text-[10px] tracking-[0.3em] text-[#ff007a] uppercase">Firestore Sync Active</span>
-          </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tighter italic">
             MASHMATCH
           </h1>
@@ -489,11 +485,11 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex flex-col items-start md:items-end">
-            <span className="font-mono text-[10px] text-white/40 uppercase tracking-widest leading-none mb-1">
-              {countdownConfig?.isActive ? 'Final Countdown' : 'Competición Global'}
-            </span>
-            {countdownConfig?.isActive ? (
+          {countdownConfig?.isActive && (
+            <div className="flex flex-col items-start md:items-end">
+              <span className="font-mono text-[10px] text-white/40 uppercase tracking-widest leading-none mb-1">
+                Final Countdown
+              </span>
               <div className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <span className="text-xl font-bold font-mono text-white">
@@ -516,13 +512,8 @@ export default function App() {
                   <span className="text-[8px] text-white/35 uppercase tracking-tighter">Secs</span>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                <span className="text-[10px] font-bold text-white/60 font-mono tracking-wider uppercase">SIN LÍMITE</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </header>
 

@@ -504,19 +504,26 @@ export default function App() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-white/3 blur-[120px] rounded-full pointer-events-none"></div>
 
       {/* HEADER SECTION - Beautiful premium look */}
-      <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 pb-4 border-b border-white/5 max-w-7xl mx-auto">
-        <div className="space-y-1">
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tighter italic">
+      <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-white/5 max-w-7xl mx-auto">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tighter italic select-none">
             MASHMATCH
           </h1>
-
+          {/* Admin Panel Toggle */}
+          <button
+            onClick={() => setShowAdminPanel(true)}
+            className="p-2 sm:p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 active:scale-95 text-[#bc13fe] hover:text-[#ff007a] transition-all cursor-pointer flex items-center shadow-lg"
+            title="Consola de Administración"
+          >
+            <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
         </div>
 
         {/* Division switcher toggle (♀ vs ♂) */}
-        <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
           <button
             onClick={() => setActiveCategory('women')}
-            className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`flex items-center space-x-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeCategory === 'women'
                 ? 'bg-gradient-to-r from-[#ff007a] to-[#ff007a]/80 text-white shadow-lg shadow-pink-500/20 font-bold'
                 : 'text-gray-400 hover:text-white'
@@ -527,7 +534,7 @@ export default function App() {
           
           <button
             onClick={() => setActiveCategory('men')}
-            className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`flex items-center space-x-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeCategory === 'men'
                 ? 'bg-gradient-to-r from-[#bc13fe] to-[#bc13fe]/80 text-white shadow-lg shadow-purple-500/20 font-bold'
                 : 'text-gray-400 hover:text-white'
@@ -537,68 +544,36 @@ export default function App() {
           </button>
         </div>
 
-        {/* Utilities Toggles & Live countdown info */}
-        <div className="flex flex-col items-start md:items-end gap-3">
-          <div className="flex items-center gap-3">
-            {/* SFX Toggle */}
-            <button
-              onClick={() => setSfxEnabled(!sfxEnabled)}
-              className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 active:scale-95 text-gray-300 hover:text-white transition-all cursor-pointer flex items-center space-x-2 text-xs font-mono"
-              title="Sound FX"
-            >
-              {sfxEnabled ? (
-                <>
-                  <Volume2 className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
-                  <span className="uppercase text-pink-400 font-bold text-[10px]">SFX ON</span>
-                </>
-              ) : (
-                <>
-                  <VolumeX className="w-3.5 h-3.5 text-white/30" />
-                  <span className="uppercase text-white/30 font-bold text-[10px]">MUTED</span>
-                </>
-              )}
-            </button>
-
-            {/* Admin Panel Toggle */}
-            <button
-              onClick={() => setShowAdminPanel(true)}
-              className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 active:scale-95 text-[#bc13fe] hover:text-[#ff007a] transition-all cursor-pointer flex items-center"
-              title="Consola de Administración"
-            >
-              <Shield className="w-4 h-4" />
-            </button>
-          </div>
-
-          {countdownConfig?.isActive && (
-            <div className="flex flex-col items-start md:items-end">
-              <span className="font-mono text-[10px] text-white/40 uppercase tracking-widest leading-none mb-1">
-                Final Countdown
-              </span>
-              <div className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  <span className="text-xl font-bold font-mono text-white">
-                    {String(timeLeft.d * 24 + timeLeft.h).padStart(2, '0')}
-                  </span>
-                  <span className="text-[8px] text-white/35 uppercase tracking-tighter">Hours</span>
-                </div>
-                <span className="text-xl font-bold opacity-30 text-white">:</span>
-                <div className="flex flex-col items-center">
-                  <span className="text-xl font-bold font-mono text-[#bc13fe]">
-                    {String(timeLeft.m).padStart(2, '0')}
-                  </span>
-                  <span className="text-[8px] text-white/35 uppercase tracking-tighter">Mins</span>
-                </div>
-                <span className="text-xl font-bold opacity-30 text-white">:</span>
-                <div className="flex flex-col items-center">
-                  <span className="text-xl font-bold font-mono text-[#ff007a] animate-pulse">
-                    {String(timeLeft.s).padStart(2, '0')}
-                  </span>
-                  <span className="text-[8px] text-white/35 uppercase tracking-tighter">Secs</span>
-                </div>
+        {/* Live countdown info */}
+        {countdownConfig?.isActive && (
+          <div className="flex items-center gap-3 bg-white/5 border border-white/5 px-3 py-1.5 rounded-xl">
+            <span className="font-mono text-[9px] text-white/40 uppercase tracking-widest leading-none">
+              Countdown:
+            </span>
+            <div className="flex gap-2">
+              <div className="flex items-center">
+                <span className="text-sm font-bold font-mono text-white">
+                  {String(timeLeft.d * 24 + timeLeft.h).padStart(2, '0')}
+                </span>
+                <span className="text-[7px] text-white/35 uppercase ml-0.5">h</span>
+              </div>
+              <span className="text-sm font-bold opacity-30 text-white">:</span>
+              <div className="flex items-center">
+                <span className="text-sm font-bold font-mono text-[#bc13fe]">
+                  {String(timeLeft.m).padStart(2, '0')}
+                </span>
+                <span className="text-[7px] text-white/35 uppercase ml-0.5">m</span>
+              </div>
+              <span className="text-sm font-bold opacity-30 text-white">:</span>
+              <div className="flex items-center">
+                <span className="text-sm font-bold font-mono text-[#ff007a] animate-pulse">
+                  {String(timeLeft.s).padStart(2, '0')}
+                </span>
+                <span className="text-[7px] text-white/35 uppercase ml-0.5">s</span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
       {/* MAIN CONTAINER */}
@@ -688,9 +663,7 @@ export default function App() {
                     </span>
                   )}
                 </h2>
-                <div className="text-[9px] sm:text-xs text-white/40 font-mono tracking-widest uppercase mt-0.5">
-                  Haz clic en tu favorita o usa las teclas de flecha (← / →)
-                </div>
+
               </div>
             )}
 
@@ -885,7 +858,7 @@ export default function App() {
 
                     {/* Name and Match Subtitle */}
                     <div className="text-center w-full relative z-10 flex-col flex items-center justify-center mt-auto">
-                      <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#ff007a] transition-all duration-300 leading-tight line-clamp-1 select-none">
+                      <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#ff007a] transition-all duration-300 leading-tight select-none px-1">
                         {leftContestant.name}
                       </h2>
                       
@@ -946,7 +919,7 @@ export default function App() {
 
                     {/* Name and Match Subtitle */}
                     <div className="text-center w-full relative z-10 flex-col flex items-center justify-center mt-auto">
-                      <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#bc13fe] transition-all duration-300 leading-tight line-clamp-1 select-none">
+                      <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#bc13fe] transition-all duration-300 leading-tight select-none px-1">
                         {rightContestant.name}
                       </h2>
                       

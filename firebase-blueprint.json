@@ -60,12 +60,48 @@
         }
       },
       "required": ["id", "isActive"]
+    },
+    "AdminUser": {
+      "title": "Admin Registered User",
+      "description": "Information of users registering via Google Sign-In in the admin console.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID (auth UID)."
+        },
+        "nombre": {
+          "type": "string",
+          "description": "User profile full name."
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address."
+        },
+        "fotoUrl": {
+          "type": "string",
+          "description": "User profile avatar photo URL."
+        },
+        "rol": {
+          "type": "string",
+          "description": "Role assigned (admin or usuario)."
+        },
+        "registradoEn": {
+          "type": "string",
+          "description": "Spanish registration timestamp."
+        }
+      },
+      "required": ["id", "nombre", "email", "rol", "registradoEn"]
     }
   },
   "firestore": {
     "INGLES1.Estudiantes/generos/{generoId}/{studentId}": {
       "schema": "Student",
       "description": "Nested collection of participating students categories."
+    },
+    "INGLES1.Estudiantes/registro/admin/{userId}": {
+      "schema": "AdminUser",
+      "description": "Subcollection under INGLES1.Estudiantes documenting Google-authenticated users and administrators."
     },
     "config/{configId}": {
       "schema": "Config",

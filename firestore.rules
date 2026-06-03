@@ -29,6 +29,15 @@ service cloud.firestore {
              data.isActive is bool;
     }
 
+    function isValidAdminUser(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 120 &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 120 &&
+             data.rol is string && (data.rol == "admin" || data.rol == "usuario") &&
+             (data.rol != "admin" || data.email == "wikistars12@gmail.com") &&
+             data.registradoEn is string;
+    }
+
     // 2. Collection Rules: Students
     match /{collectionName}/generos/{generoId}/{studentId} {
       allow read: if collectionName == "INGLES1.Estudiantes";
@@ -49,7 +58,14 @@ service cloud.firestore {
       ));
     }
 
-    // 3. Collection Rules: System Config
+    // 3. Collection Rules: Registered Admin Users
+    match /INGLES1.Estudiantes/registro/admin/{userId} {
+      allow read: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && userId == request.auth.uid && isValidId(userId) && isValidAdminUser(request.resource.data) && request.resource.data.id == userId && request.resource.data.email == request.auth.token.email;
+      allow delete: if isAdmin();
+    }
+
+    // 4. Collection Rules: System Config
     match /config/{configId} {
       allow read: if true;
       // Allow creation of static config (important for fallback fallback bootstrapping on empty DBs)

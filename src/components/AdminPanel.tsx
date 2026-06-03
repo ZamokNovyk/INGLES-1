@@ -102,10 +102,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Safe registration in INGLES1.Estudiantes/registro/admin/{uid}
+      const isSystemAdmin = user.email === 'wikistars12@gmail.com';
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'registro', 'admin', user.uid), {
+        id: user.uid,
+        nombre: user.displayName || 'Usuario Google',
+        email: user.email || '',
+        fotoUrl: user.photoURL || '',
+        rol: isSystemAdmin ? 'admin' : 'usuario',
+        registradoEn: getSpanishTimestamp()
+      });
+
       showStatus('Autenticación completada con éxito.');
     } catch (error: any) {
-      showStatus(`Error al autenticar: ${error.message}`, true);
+      handleFirestoreError(error, OperationType.WRITE, 'INGLES1.Estudiantes/registro/admin');
+      showStatus(`Error al autenticar o registrar: ${error.message}`, true);
     } finally {
       setLoading(false);
     }

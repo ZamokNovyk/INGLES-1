@@ -54,6 +54,18 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Keep references to current students and voted matchups to avoid triggering matchmaking updates when ELO or vote counts change in real-time
+  const studentsRef = React.useRef<Student[]>([]);
+  const votedMatchupsRef = React.useRef<string[]>([]);
+
+  useEffect(() => {
+    studentsRef.current = students;
+  }, [students]);
+
+  useEffect(() => {
+    votedMatchupsRef.current = votedMatchups;
+  }, [votedMatchups]);
+
   // Countdown timer states
   const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number }>({ d: 0, h: 0, m: 0, s: 0 });
   const [timerFinished, setTimerFinished] = useState<boolean>(false);
@@ -268,8 +280,11 @@ export default function App() {
 
   // 4. Random Pair Generator (Candidate Matchmaker selections)
   const selectRandomCandidates = useCallback(() => {
+    const currentStudents = studentsRef.current;
+    const currentVoted = votedMatchupsRef.current;
+
     // Filter candidates by category
-    const filtered = students.filter(s => s.genre === activeCategory);
+    const filtered = currentStudents.filter(s => s.genre === activeCategory);
     if (filtered.length < 2) {
       setLeftId(null);
       setRightId(null);
@@ -281,7 +296,7 @@ export default function App() {
     for (let i = 0; i < filtered.length; i++) {
       for (let j = i + 1; j < filtered.length; j++) {
         const pairKey = [filtered[i].id, filtered[j].id].sort().join('_');
-        if (!votedMatchups.includes(pairKey)) {
+        if (!currentVoted.includes(pairKey)) {
           unvotedPairs.push([filtered[i], filtered[j]]);
         }
       }
@@ -302,8 +317,8 @@ export default function App() {
       }
     } else {
       // If all pairs are voted, reset the progress for this activeCategory in local storage to allow endless rounds
-      const otherCategoryIds = students.filter(s => s.genre !== activeCategory).map(s => s.id);
-      const cleanedMatchups = votedMatchups.filter(key => {
+      const otherCategoryIds = currentStudents.filter(s => s.genre !== activeCategory).map(s => s.id);
+      const cleanedMatchups = currentVoted.filter(key => {
         const [id1, id2] = key.split('_');
         return otherCategoryIds.includes(id1) && otherCategoryIds.includes(id2);
       });
@@ -326,25 +341,26 @@ export default function App() {
         setRightId(filtered[idxA].id);
       }
     }
-  }, [students, activeCategory, votedMatchups]);
+  }, [activeCategory]);
 
   // Select candidates on load or when category changes
   useEffect(() => {
-    if (students.length > 0) {
-      const currentLeft = students.find(s => s.id === leftId);
-      const currentRight = students.find(s => s.id === rightId);
+    const currentStudentsTemp = studentsRef.current;
+    if (currentStudentsTemp.length > 0) {
+      const currentLeft = currentStudentsTemp.find(s => s.id === leftId);
+      const currentRight = currentStudentsTemp.find(s => s.id === rightId);
       
       const hasNoContestants = !leftId || !rightId || !currentLeft || !currentRight;
       const categoryMismatch = (currentLeft && currentLeft.genre !== activeCategory) || 
                                (currentRight && currentRight.genre !== activeCategory);
       
       // Only select if there are no contestants, or they belong to the wrong category.
-      // This prevents the versus cards from swapping out when another user votes and updates student rating values.
+      // ELO or wins modifications will update live in the cards, but will never trigger a pair swap.
       if (hasNoContestants || categoryMismatch) {
         selectRandomCandidates();
       }
     }
-  }, [students, activeCategory, leftId, rightId, selectRandomCandidates]);
+  }, [students.length, activeCategory, leftId, rightId, selectRandomCandidates]);
 
   // 5. Atomic ELO Voting & Expected Score logic calculation (Requirement 2)
   const castVote = async (winnerId: string, loserId: string) => {

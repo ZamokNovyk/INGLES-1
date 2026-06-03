@@ -15,6 +15,7 @@ export interface CountdownConfig {
   targetDate: string; // ISO string e.g., "2026-06-15T12:00:00.000Z"
   isActive: boolean;
   isCompleted?: boolean;
+  lastResetAt?: string;
 }
 
 export enum OperationType {

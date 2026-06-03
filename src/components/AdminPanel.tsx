@@ -166,11 +166,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     const path = 'INGLES1.Estudiantes/configuracion/config/countdown';
     try {
       const isoString = targetDateInput ? new Date(targetDateInput).toISOString() : new Date().toISOString();
-      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), {
+      const payload: any = {
         id: 'countdown',
         targetDate: isoString,
         isActive: countdownActive
-      });
+      };
+      if (countdownConfig?.lastResetAt) {
+        payload.lastResetAt = countdownConfig.lastResetAt;
+      }
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), payload);
       showStatus('Configuración de cuenta regresiva guardada correctamente.');
     } catch (error: any) {
       handleFirestoreError(error, OperationType.WRITE, path);
@@ -195,11 +199,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
 
     setLoading(true);
     try {
-      // 1. Reset countdownconfig to inactive
+      // 1. Reset countdownconfig to inactive and set new lastResetAt for client-side sweeps
       await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), {
         id: 'countdown',
         targetDate: new Date().toISOString(),
-        isActive: false
+        isActive: false,
+        lastResetAt: new Date().toISOString()
       });
 
       // 2. Loop & update all current students ELO & Wins & Losses
@@ -261,11 +266,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       ];
       await Promise.all(deletePromises);
 
-      // 2. Setup default configurations
+      // 2. Setup default configurations with new lastResetAt for client-side sweeps
       await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), {
         id: 'countdown',
         targetDate: new Date().toISOString(),
-        isActive: false
+        isActive: false,
+        lastResetAt: new Date().toISOString()
       });
 
       // 3. Write default seed students

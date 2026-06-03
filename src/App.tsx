@@ -40,9 +40,13 @@ export default function App() {
   const [countdownConfig, setCountdownConfig] = useState<CountdownConfig | null>(null);
   const [activeCategory, setActiveCategory] = useState<'women' | 'men'>('women');
 
-  // Voting Pairs
-  const [leftContestant, setLeftContestant] = useState<Student | null>(null);
-  const [rightContestant, setRightContestant] = useState<Student | null>(null);
+  // Voting Pairs (IDs only, referenced dynamically from student list to maintain structural stability)
+  const [leftId, setLeftId] = useState<string | null>(null);
+  const [rightId, setRightId] = useState<string | null>(null);
+
+  // Derivamos los concursantes activos en base a sus IDs para reflejar actualizaciones en tiempo real sin cambiar de versus
+  const leftContestant = students.find(s => s.id === leftId) || null;
+  const rightContestant = students.find(s => s.id === rightId) || null;
 
   // Stats / Progress
   const [votedMatchups, setVotedMatchups] = useState<string[]>(() => {
@@ -182,16 +186,30 @@ export default function App() {
       doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'),
       (docSnap) => {
         if (docSnap.exists()) {
-          setCountdownConfig(docSnap.data() as CountdownConfig);
+          const config = docSnap.data() as CountdownConfig;
+          setCountdownConfig(config);
+          
+          if (config.lastResetAt) {
+            const localLastReset = localStorage.getItem('mashMatch_last_reset_at');
+            if (localLastReset !== config.lastResetAt) {
+              setVotedMatchups([]);
+              localStorage.setItem('mashMatch_voted_pairs', JSON.stringify([]));
+              localStorage.setItem('mashMatch_last_reset_at', config.lastResetAt);
+            }
+          }
         } else {
           // Base config document fallback
           const defaultCountdown: CountdownConfig = {
             id: 'countdown',
             targetDate: new Date(Date.now() + 1000 * 3600 * 48).toISOString(), // 48h limit
-            isActive: false
+            isActive: false,
+            lastResetAt: new Date().toISOString()
           };
           setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), defaultCountdown)
-            .then(() => setCountdownConfig(defaultCountdown))
+            .then(() => {
+              setCountdownConfig(defaultCountdown);
+              localStorage.setItem('mashMatch_last_reset_at', defaultCountdown.lastResetAt || '');
+            })
             .catch(err => console.warn(err));
         }
       },
@@ -253,28 +271,80 @@ export default function App() {
     // Filter candidates by category
     const filtered = students.filter(s => s.genre === activeCategory);
     if (filtered.length < 2) {
-      setLeftContestant(null);
-      setRightContestant(null);
+      setLeftId(null);
+      setRightId(null);
       return;
     }
 
-    // Select first randomly
-    const idxA = Math.floor(Math.random() * filtered.length);
-    let idxB = Math.floor(Math.random() * filtered.length);
-    while (idxA === idxB) {
-      idxB = Math.floor(Math.random() * filtered.length);
+    // Generate all unvoted pairs in this category
+    const unvotedPairs: [Student, Student][] = [];
+    for (let i = 0; i < filtered.length; i++) {
+      for (let j = i + 1; j < filtered.length; j++) {
+        const pairKey = [filtered[i].id, filtered[j].id].sort().join('_');
+        if (!votedMatchups.includes(pairKey)) {
+          unvotedPairs.push([filtered[i], filtered[j]]);
+        }
+      }
     }
 
-    setLeftContestant(filtered[idxA]);
-    setRightContestant(filtered[idxB]);
-  }, [students, activeCategory]);
+    if (unvotedPairs.length > 0) {
+      // Select a random unvoted pair
+      const randomIdx = Math.floor(Math.random() * unvotedPairs.length);
+      const [candidateA, candidateB] = unvotedPairs[randomIdx];
+      
+      // Randomize left and right placement
+      if (Math.random() > 0.5) {
+        setLeftId(candidateA.id);
+        setRightId(candidateB.id);
+      } else {
+        setLeftId(candidateB.id);
+        setRightId(candidateA.id);
+      }
+    } else {
+      // If all pairs are voted, reset the progress for this activeCategory in local storage to allow endless rounds
+      const otherCategoryIds = students.filter(s => s.genre !== activeCategory).map(s => s.id);
+      const cleanedMatchups = votedMatchups.filter(key => {
+        const [id1, id2] = key.split('_');
+        return otherCategoryIds.includes(id1) && otherCategoryIds.includes(id2);
+      });
+      
+      setVotedMatchups(cleanedMatchups);
+      localStorage.setItem('mashMatch_voted_pairs', JSON.stringify(cleanedMatchups));
 
-  // Select candidates on load or when dataset/category changes
+      // Choose a completely random pair since we reset
+      const idxA = Math.floor(Math.random() * filtered.length);
+      let idxB = Math.floor(Math.random() * filtered.length);
+      while (idxA === idxB) {
+        idxB = Math.floor(Math.random() * filtered.length);
+      }
+      
+      if (Math.random() > 0.5) {
+        setLeftId(filtered[idxA].id);
+        setRightId(filtered[idxB].id);
+      } else {
+        setLeftId(filtered[idxB].id);
+        setRightId(filtered[idxA].id);
+      }
+    }
+  }, [students, activeCategory, votedMatchups]);
+
+  // Select candidates on load or when category changes
   useEffect(() => {
     if (students.length > 0) {
-      selectRandomCandidates();
+      const currentLeft = students.find(s => s.id === leftId);
+      const currentRight = students.find(s => s.id === rightId);
+      
+      const hasNoContestants = !leftId || !rightId || !currentLeft || !currentRight;
+      const categoryMismatch = (currentLeft && currentLeft.genre !== activeCategory) || 
+                               (currentRight && currentRight.genre !== activeCategory);
+      
+      // Only select if there are no contestants, or they belong to the wrong category.
+      // This prevents the versus cards from swapping out when another user votes and updates student rating values.
+      if (hasNoContestants || categoryMismatch) {
+        selectRandomCandidates();
+      }
     }
-  }, [students, activeCategory, selectRandomCandidates]);
+  }, [students, activeCategory, leftId, rightId, selectRandomCandidates]);
 
   // 5. Atomic ELO Voting & Expected Score logic calculation (Requirement 2)
   const castVote = async (winnerId: string, loserId: string) => {

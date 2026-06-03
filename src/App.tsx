@@ -179,7 +179,7 @@ export default function App() {
 
     // Phase C: Attach live Firestore Config snapshot listening
     const unsubscribeConfig = onSnapshot(
-      doc(db, 'config', 'countdown'),
+      doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'),
       (docSnap) => {
         if (docSnap.exists()) {
           setCountdownConfig(docSnap.data() as CountdownConfig);
@@ -190,13 +190,13 @@ export default function App() {
             targetDate: new Date(Date.now() + 1000 * 3600 * 48).toISOString(), // 48h limit
             isActive: false
           };
-          setDoc(doc(db, 'config', 'countdown'), defaultCountdown)
+          setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), defaultCountdown)
             .then(() => setCountdownConfig(defaultCountdown))
             .catch(err => console.warn(err));
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'config/countdown');
+        handleFirestoreError(error, OperationType.GET, 'INGLES1.Estudiantes/configuracion/config/countdown');
       }
     );
 

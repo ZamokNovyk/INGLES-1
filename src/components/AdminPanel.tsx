@@ -150,10 +150,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     }
 
     setLoading(true);
-    const path = 'config/countdown';
+    const path = 'INGLES1.Estudiantes/configuracion/config/countdown';
     try {
       const isoString = targetDateInput ? new Date(targetDateInput).toISOString() : new Date().toISOString();
-      await setDoc(doc(db, 'config', 'countdown'), {
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), {
         id: 'countdown',
         targetDate: isoString,
         isActive: countdownActive
@@ -183,7 +183,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     setLoading(true);
     try {
       // 1. Reset countdownconfig to inactive
-      await setDoc(doc(db, 'config', 'countdown'), {
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), {
         id: 'countdown',
         targetDate: new Date().toISOString(),
         isActive: false
@@ -249,7 +249,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       await Promise.all(deletePromises);
 
       // 2. Setup default configurations
-      await setDoc(doc(db, 'config', 'countdown'), {
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'config', 'countdown'), {
         id: 'countdown',
         targetDate: new Date().toISOString(),
         isActive: false

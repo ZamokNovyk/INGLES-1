@@ -106,6 +106,10 @@
     "config/{configId}": {
       "schema": "Config",
       "description": "General configuration parameters accessed by clients."
+    },
+    "INGLES1.Estudiantes/configuracion/config/{configId}": {
+      "schema": "Config",
+      "description": "Nested configuration subcollection matching CTA7 layout."
     }
   }
 }

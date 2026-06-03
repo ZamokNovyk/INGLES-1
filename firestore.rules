@@ -18,16 +18,15 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
     }
 
-    function isValidStudent(data) {
-      return data.id is string &&
-             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.genre is string && (data.genre == "women" || data.genre == "men") &&
+    function isValidNewStudent(data) {
+      return data.nombre is string && data.nombre.size() > 0 && data.nombre.size() <= 120 &&
+             data.get('género', '') is string && (data.get('género', '') == "hombres" || data.get('género', '') == "mujeres") &&
              data.elo is number &&
-             data.wins is number &&
-             data.losses is number;
+             data.votos_ganados is number &&
+             data.votos_perdidos is number;
     }
 
     function isValidConfig(data) {
@@ -36,28 +35,32 @@ service cloud.firestore {
     }
 
     // 2. Collection Rules: Students
-    match /students/{studentId} {
-      allow read: if true;
+    match /{collectionName}/generos/{generoId}/{studentId} {
+      allow read: if collectionName == "INGLES1.Estudiantes";
       
-      // Admin has full control
-      allow create, delete: if isAdmin() && isValidId(studentId) && isValidStudent(request.resource.data);
+      // Allow any user to create a student (with schema validation) to support startup seeding
+      allow create: if collectionName == "INGLES1.Estudiantes" && isValidId(studentId) && (generoId == "hombres" || generoId == "mujeres") && isValidNewStudent(request.resource.data);
+      // Only Admin can delete profiles
+      allow delete: if collectionName == "INGLES1.Estudiantes" && isAdmin() && isValidId(studentId);
       
-      allow update: if (isAdmin() && isValidStudent(request.resource.data)) || (
-        // Non-admin can ONLY modify 'elo', 'wins', and 'losses'
+      allow update: if collectionName == "INGLES1.Estudiantes" && ((isAdmin() && isValidNewStudent(request.resource.data)) || (
+        // Non-admin can ONLY modify 'elo', 'votos_ganados', 'votos_perdidos', and 'actualizadoEn'
         // This is the Tiered Identity / Action-Based Update Pattern (Pillars 4 & 5)
         isValidId(studentId) &&
-        isValidStudent(request.resource.data) &&
-        request.resource.data.id == resource.data.id &&
-        request.resource.data.name == resource.data.name &&
-        request.resource.data.genre == resource.data.genre &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['elo', 'wins', 'losses'])
-      );
+        isValidNewStudent(request.resource.data) &&
+        request.resource.data.nombre == resource.data.nombre &&
+        request.resource.data.get('género', '') == resource.data.get('género', '') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['elo', 'votos_ganados', 'votos_perdidos', 'actualizadoEn'])
+      ));
     }
 
     // 3. Collection Rules: System Config
     match /config/{configId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidId(configId) && isValidConfig(request.resource.data);
+      // Allow creation of static config (important for fallback fallback bootstrapping on empty DBs)
+      allow create: if isValidId(configId) && isValidConfig(request.resource.data);
+      // Only Admin can modify or delete existing configs
+      allow update, delete: if isAdmin() && isValidId(configId) && isValidConfig(request.resource.data);
     }
   }
 }

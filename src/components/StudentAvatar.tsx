@@ -1,13 +1,34 @@
 import React from 'react';
+import { getAvatarUrl } from '../utils';
 
 interface StudentAvatarProps {
   id: string;
   name: string;
   genre: 'women' | 'men';
+  perfilPhotoUrl?: string;
   className?: string;
 }
 
-export const StudentAvatar: React.FC<StudentAvatarProps> = ({ id, name, genre, className = "w-28 h-28" }) => {
+export const StudentAvatar: React.FC<StudentAvatarProps> = ({ id, name, genre, perfilPhotoUrl, className = "w-28 h-28" }) => {
+  let displayPhotoUrl = perfilPhotoUrl;
+  
+  if (displayPhotoUrl && displayPhotoUrl.includes('dicebear.com')) {
+    displayPhotoUrl = getAvatarUrl(name, genre);
+  }
+
+  if (displayPhotoUrl) {
+    return (
+      <div className={`relative flex items-center justify-center rounded-full bg-linear-to-tr from-pink-500/5 to-violet-500/5 border border-white/10 overflow-hidden ${className}`}>
+        <img 
+          src={displayPhotoUrl} 
+          alt={name} 
+          className="w-full h-full object-cover select-none"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
   // Generate stable pseudo-random attributes based on name / ID string hashCode
   const getHashCode = (str: string) => {
     let hash = 0;

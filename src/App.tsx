@@ -11,10 +11,11 @@ import {
   doc, 
   updateDoc, 
   setDoc,
+  getDocs,
   serverTimestamp 
 } from 'firebase/firestore';
 import { Student, CountdownConfig, OperationType } from './types';
-import { DEFAULT_STUDENTS } from './defaultStudents';
+import { DEFAULT_SEED_STUDENTS, getSpanishTimestamp, normalizeNameId } from './defaultStudents';
 import { StudentAvatar } from './components/StudentAvatar';
 import { AdminPanel } from './components/AdminPanel';
 import { RevealShow } from './components/RevealShow';
@@ -98,36 +99,81 @@ export default function App() {
       }
     }
 
-    // Phase B: Attach live Firestore snapshot listening
-    const unsubscribeStudents = onSnapshot(
-      collection(db, 'students'),
-      async (snapshot) => {
-        const list: Student[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Student);
-        });
+    // Phase B: Attach live Firestore snapshot listening for both Hombres and Mujeres
+    const currentStudentsTemp: { [id: string]: Student } = {};
 
-        if (list.length === 0) {
-          // Automatic DB seeding if database is empty upon initial startup
-          try {
-            const seedPromises = DEFAULT_STUDENTS.map(student => {
-              return setDoc(doc(db, 'students', student.id), {
-                ...student,
-                createdAt: serverTimestamp()
-              });
-            });
-            await Promise.all(seedPromises);
-            console.log('Seeded database with default students list successfully.');
-          } catch (e) {
-            console.error('Failure seeding default students in background', e);
-          }
-        } else {
-          setStudents(list);
-          localStorage.setItem('mashMatch_cached_students', JSON.stringify(list));
+    const handleSnapshotUpdate = (snapshot: any, collectionGenre: 'men' | 'women') => {
+      // First, remove existing ones for this genre to allow sync deletion or updates
+      Object.keys(currentStudentsTemp).forEach((id) => {
+        if (currentStudentsTemp[id].genre === collectionGenre) {
+          delete currentStudentsTemp[id];
         }
+      });
+
+      snapshot.forEach((docSnap: any) => {
+        const data = docSnap.data();
+        currentStudentsTemp[docSnap.id] = {
+          id: docSnap.id,
+          name: data.nombre || '',
+          genre: collectionGenre,
+          elo: data.elo !== undefined ? Number(data.elo) : 1200,
+          wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
+          losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
+          perfilPhotoUrl: data.perfilPhotoUrl || '',
+          actualizadoEn: data.actualizadoEn || '',
+        };
+      });
+
+      const list = Object.values(currentStudentsTemp);
+      setStudents(list);
+      localStorage.setItem('mashMatch_cached_students', JSON.stringify(list));
+    };
+
+    const checkAndSeed = async () => {
+      try {
+        const hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
+        const mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
+        
+        if (hombresSnap.empty && mujeresSnap.empty) {
+          console.log('Database empty, seeding default students...');
+          const seedPromises = DEFAULT_SEED_STUDENTS.map(student => {
+            const pathSegment = student.género; // 'hombres' or 'mujeres'
+            return setDoc(doc(db, 'INGLES1.Estudiantes', 'generos', pathSegment, student.id), {
+              nombre: student.nombre,
+              género: student.género,
+              elo: student.elo,
+              votos_ganados: student.votos_ganados,
+              votos_perdidos: student.votos_perdidos,
+              perfilPhotoUrl: student.perfilPhotoUrl,
+              actualizadoEn: getSpanishTimestamp()
+            });
+          });
+          await Promise.all(seedPromises);
+          console.log('Seeded database with new roster successfully.');
+        }
+      } catch (e) {
+        console.error('Failure seeding default students in background', e);
+      }
+    };
+    checkAndSeed();
+
+    const unsubscribeHombres = onSnapshot(
+      collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'),
+      (snapshot) => {
+        handleSnapshotUpdate(snapshot, 'men');
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'students');
+        handleFirestoreError(error, OperationType.LIST, 'INGLES1.Estudiantes/generos/hombres');
+      }
+    );
+
+    const unsubscribeMujeres = onSnapshot(
+      collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'),
+      (snapshot) => {
+        handleSnapshotUpdate(snapshot, 'women');
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'INGLES1.Estudiantes/generos/mujeres');
       }
     );
 
@@ -155,7 +201,8 @@ export default function App() {
     );
 
     return () => {
-      unsubscribeStudents();
+      unsubscribeHombres();
+      unsubscribeMujeres();
       unsubscribeConfig();
     };
   }, []);
@@ -268,27 +315,39 @@ export default function App() {
 
     try {
       // Synchronize atomically in Firestore (Requirement 2)
-      // Non-admins can change only 'elo', 'wins', 'losses' based on security rules
-      const winnerRef = doc(db, 'students', winnerObj.id);
-      const loserRef = doc(db, 'students', loserObj.id);
+      const winnerGenrePath = winnerObj.genre === 'men' ? 'hombres' : 'mujeres';
+      const loserGenrePath = loserObj.genre === 'men' ? 'hombres' : 'mujeres';
+
+      const winnerRef = doc(db, 'INGLES1.Estudiantes', 'generos', winnerGenrePath, winnerObj.id);
+      const loserRef = doc(db, 'INGLES1.Estudiantes', 'generos', loserGenrePath, loserObj.id);
+
+      const timestampStr = getSpanishTimestamp();
 
       // Async write
       await setDoc(winnerRef, {
-        ...winnerObj,
+        nombre: winnerObj.name,
+        género: winnerGenrePath,
         elo: newWinnerElo,
-        wins: winnerWins
+        votos_ganados: winnerWins,
+        votos_perdidos: winnerObj.losses,
+        perfilPhotoUrl: winnerObj.perfilPhotoUrl || '',
+        actualizadoEn: timestampStr
       });
 
       await setDoc(loserRef, {
-        ...loserObj,
+        nombre: loserObj.name,
+        género: loserGenrePath,
         elo: newLoserElo,
-        losses: loserLosses
+        votos_ganados: loserObj.wins,
+        votos_perdidos: loserLosses,
+        perfilPhotoUrl: loserObj.perfilPhotoUrl || '',
+        actualizadoEn: timestampStr
       });
 
       // Show immediate response swap
       selectRandomCandidates();
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `students/${winnerObj.id}`);
+      handleFirestoreError(err, OperationType.UPDATE, `INGLES1.Estudiantes/generos/${winnerObj.genre === 'men' ? 'hombres' : 'mujeres'}/${winnerObj.id}`);
     }
   };
 
@@ -301,9 +360,9 @@ export default function App() {
 
       if (!leftContestant || !rightContestant) return;
 
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         castVote(leftContestant.id, rightContestant.id);
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         castVote(rightContestant.id, leftContestant.id);
       }
     };
@@ -351,7 +410,7 @@ export default function App() {
   const isVotingLocked = timerFinished && (countdownConfig?.isActive ?? false);
 
   return (
-    <div className="min-h-screen bg-[#030305] text-white font-sans antialiased relative selection:bg-[#bc13fe]/30 select-none p-4 sm:p-8 overflow-x-hidden md:overflow-visible">
+    <div className="min-h-screen bg-[#030305] text-white font-sans antialiased relative selection:bg-[#bc13fe]/30 select-none p-4 sm:p-6 pb-8 overflow-x-hidden md:overflow-visible">
       
       {/* Ambient Neon Glows from Design Template */}
       <div className="absolute -top-40 -left-40 w-[400px] h-[400px] bg-[#ff007a]/15 blur-[120px] rounded-full pointer-events-none"></div>
@@ -359,7 +418,7 @@ export default function App() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-white/3 blur-[120px] rounded-full pointer-events-none"></div>
 
       {/* HEADER SECTION - Beautiful premium look */}
-      <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 pb-6 border-b border-white/5 max-w-7xl mx-auto">
+      <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 pb-4 border-b border-white/5 max-w-7xl mx-auto">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 bg-[#ff007a] shadow-[0_0_12px_#ff007a] rounded-sm"></div>
@@ -468,13 +527,13 @@ export default function App() {
       </header>
 
       {/* MAIN CONTAINER */}
-      <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10 select-none items-stretch">
+      <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 relative z-10 select-none items-stretch">
         
         {/* LEFT COLUMN: VOTING INTERFACE (8 cols) */}
-        <div className="lg:col-span-8 flex flex-col justify-between space-y-8">
+        <div className="lg:col-span-8 flex flex-col justify-start space-y-4">
           
           {/* SEC 1: Progress Meter */}
-          <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 relative overflow-hidden">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 relative overflow-hidden shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-[#ff007a] animate-ping" />
@@ -500,10 +559,30 @@ export default function App() {
             </div>
           </div>
 
-          {/* SEC 2: VOTING CARDS SCREEN */}
-          <div className="relative min-h-[420px] flex items-center justify-center">
-            
-            <AnimatePresence mode="wait">
+          {/* SEC 2: VOTING CARDS SCREEN WITH DYNAMIC TITLE */}
+          <div className="flex flex-col space-y-3 w-full animate-fade-in">
+            {!isVotingLocked && leftContestant && rightContestant && (
+              <div className="text-center py-2 px-4 bg-white/[0.02] border border-white/5 rounded-2xl backdrop-blur-md relative overflow-hidden">
+                <div className={`absolute inset-0 bg-gradient-to-r ${activeCategory === 'women' ? 'from-pink-500/5 to-transparent' : 'from-purple-500/5 to-transparent'} pointer-events-none`} />
+                <h2 className="text-[15px] sm:text-xl md:text-2xl font-black tracking-tight select-none uppercase">
+                  {activeCategory === 'women' ? (
+                    <span className="bg-gradient-to-r from-pink-400 via-rose-300 to-fuchsia-400 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(255,0,122,0.35)] font-black">
+                      ¿Quién es la más bonita? 🌸
+                    </span>
+                  ) : (
+                    <span className="bg-gradient-to-r from-violet-400 via-purple-300 to-[#bc13fe] bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(188,19,254,0.35)] font-black">
+                      ¿Quién es el más guapo? ⚡
+                    </span>
+                  )}
+                </h2>
+                <div className="text-[9px] sm:text-xs text-white/40 font-mono tracking-widest uppercase mt-0.5">
+                  Haz clic en tu favorita o usa las teclas de flecha (← / →)
+                </div>
+              </div>
+            )}
+
+            <div className="relative min-h-[300px] sm:min-h-[340px] flex items-center justify-center">
+              <AnimatePresence mode="wait">
               {isVotingLocked ? (
                 // 🔒 VOTATION FINISHED BANNER
                 <motion.div 
@@ -550,135 +629,129 @@ export default function App() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -15 }}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full relative"
+                  className="grid grid-cols-2 gap-4 sm:gap-6 md:gap-10 w-full relative"
                 >
                   {/* LEFT NOMINEE */}
                   <div 
                     onClick={() => castVote(leftContestant.id, rightContestant.id)}
-                    className="group relative cursor-pointer overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-8 flex flex-col justify-between transition-all hover:bg-white/10 hover:border-[#ff007a]/40 shadow-2xl hover:shadow-[#ff007a]/5 duration-300 h-[380px]"
+                    className="group relative cursor-pointer overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 hover:border-[#ff007a]/40 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,122,0.15)] hover:scale-[1.01] active:scale-[0.99] h-[340px] xs:h-[390px] sm:h-[450px]"
                   >
-                    {/* Glowing Left Accent Strip from Design Spec */}
-                    <div className="absolute top-0 left-0 w-1.5 h-full bg-[#ff007a] shadow-[0_0_12px_#ff007a]"></div>
-                    
-                    <div className="flex justify-between items-start w-full relative z-10 font-sans">
-                      <div className="transform group-hover:scale-[1.03] transition-transform duration-300">
-                        <StudentAvatar id={leftContestant.id} name={leftContestant.name} genre={leftContestant.genre} className="w-16 h-16 sm:w-20 sm:h-20" />
+                    {/* Pill Header Row */}
+                    <div className="flex justify-between items-center w-full relative z-10">
+                      <div className="px-3 py-1 rounded-full bg-black/60 border border-[#ff007a]/20 font-mono text-[9px] sm:text-[10px] md:text-xs font-black select-none text-[#ff007a] tracking-wider">
+                        VOTAR <span className="text-[#ff007a]/70">[A]</span>
                       </div>
                       
-                      <div className="text-right">
-                        <div className="font-mono text-[10px] text-white/40 tracking-wider font-semibold">
-                          RANK #{String(sortedStudentsOfCategory.findIndex(item => item.id === leftContestant.id) + 1).padStart(2, '0')}
-                        </div>
-                        <div className="text-2xl font-black font-mono text-white mt-1">
-                          {leftContestant.elo}
-                          <span className="text-[10px] text-[#ff007a] font-bold block">ELO SCORE</span>
-                        </div>
+                      <div className="px-3 py-1 rounded-full bg-black/60 border border-white/5 font-mono text-[9px] sm:text-[10px] md:text-xs text-white/80 font-black flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-zinc-400 fill-zinc-400/20" strokeWidth={2.5} />
+                        <span>{leftContestant.elo}</span>
                       </div>
                     </div>
 
-                    <div className="text-left w-full relative z-10 mt-auto">
-                      <div className="font-mono text-[9px] uppercase font-bold tracking-[0.2em] text-[#ff007a] mb-2">Votar [←] o hacer click</div>
-                      <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-2 group-hover:text-[#ff007a] transition-colors line-clamp-1 leading-none">
+                    {/* Center Avatar Block with glowing ring */}
+                    <div className="flex justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
+                      <div className="relative rounded-full p-2 border-2 border-[#ff007a]/20 group-hover:border-[#ff007a]/60 group-hover:scale-[1.03] transition-all duration-300 shadow-[0_0_15px_rgba(255,0,122,0.1)] group-hover:shadow-[0_0_25px_rgba(255,0,122,0.25)]">
+                        <StudentAvatar 
+                          id={leftContestant.id} 
+                          name={leftContestant.name} 
+                          genre={leftContestant.genre} 
+                          perfilPhotoUrl={leftContestant.perfilPhotoUrl} 
+                          className="w-14 h-14 xs:w-18 xs:h-18 sm:w-24 sm:h-24 md:w-28 md:h-28" 
+                        />
+                      </div>
+                    </div>
+
+                    {/* Name and Match Subtitle */}
+                    <div className="text-center w-full relative z-10 flex-col flex items-center justify-center mt-auto">
+                      <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#ff007a] transition-all duration-300 leading-tight line-clamp-1 select-none">
                         {leftContestant.name}
                       </h2>
                       
-                      <div className="flex gap-6 border-t border-white/5 pt-3">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Win Rate</span>
-                          <span className="font-mono text-sm text-white font-semibold">
-                            {(leftContestant.wins + leftContestant.losses) > 0 
-                              ? ((leftContestant.wins / (leftContestant.wins + leftContestant.losses)) * 100).toFixed(1) + '%' 
-                              : '0.0%'}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Combates</span>
-                          <span className="font-mono text-sm text-[#ff007a] font-semibold flex items-center gap-1">
-                            <Flame className="w-3 h-3" />
-                            {leftContestant.wins + leftContestant.losses}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Victorias</span>
-                          <span className="font-mono text-sm text-green-400 font-semibold">
-                            {leftContestant.wins}
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-center gap-1 mt-1 sm:mt-1.5 font-mono text-[9px] xs:text-[11px] text-[#ff007a] font-bold tracking-wider">
+                        <Flame className="w-3.5 h-3.5 text-[#ff007a] fill-[#ff007a]/10" strokeWidth={2.5} />
+                        <span>{leftContestant.wins + leftContestant.losses} P • {leftContestant.wins} V</span>
                       </div>
+                    </div>
+
+                    {/* Custom Action button - looks like outlined/outline normally, solid on hover! */}
+                    <div className="w-full relative z-10 mt-3 xs:mt-5 sm:mt-6">
+                      <button
+                        type="button"
+                        className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#ff007a] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(255,0,122,0.45)] cursor-pointer select-none"
+                      >
+                        VOTAR
+                      </button>
                     </div>
                   </div>
 
-                  {/* VS INDICATOR IN THE MIDDLE WITH PULSING EFFECT */}
-                  <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center pointer-events-none md:flex hidden">
-                    <div className="w-14 h-14 rounded-full border border-white/20 flex items-center justify-center bg-[#030305] relative">
-                      <div className="absolute inset-0 rounded-full animate-ping bg-[#bc13fe]/20"></div>
-                      <span className="text-xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">VS</span>
+                  {/* VS INDICATOR IN THE MIDDLE WITH PULSING EFFECT - absolute centerpiece */}
+                  <div className="absolute left-1/2 top-[42%] transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center pointer-events-none select-none">
+                    <div className="w-11 h-11 xs:w-13 xs:h-13 sm:w-16 sm:h-16 rounded-full border-2 border-pink-500/30 flex items-center justify-center bg-[#0d0713] relative shadow-[0_0_20px_rgba(255,0,122,0.5)]">
+                      <div className="absolute inset-0 rounded-full animate-ping bg-[#ff007a]/15 opacity-60"></div>
+                      <span className="text-xs xs:text-sm sm:text-base md:text-lg font-black italic tracking-tighter text-white uppercase drop-shadow-[0_0_8px_rgba(255,255,255,0.7)]">vs</span>
                     </div>
-                    <div className="h-20 w-[1px] bg-gradient-to-b from-transparent via-white/10 to-transparent my-2"></div>
                   </div>
 
                   {/* RIGHT NOMINEE */}
                   <div 
                     onClick={() => castVote(rightContestant.id, leftContestant.id)}
-                    className="group relative cursor-pointer overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-8 flex flex-col justify-between transition-all hover:bg-white/10 hover:border-[#bc13fe]/40 shadow-2xl hover:shadow-[#bc13fe]/5 duration-300 h-[380px]"
+                    className="group relative cursor-pointer overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 hover:border-[#bc13fe]/40 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-[0_0_30px_rgba(188,19,254,0.15)] hover:scale-[1.01] active:scale-[0.99] h-[340px] xs:h-[390px] sm:h-[450px]"
                   >
-                    {/* Glowing Right Accent Strip from Design Spec */}
-                    <div className="absolute top-0 right-0 w-1.5 h-full bg-[#bc13fe] shadow-[0_0_12px_#bc13fe]"></div>
-                    
-                    <div className="flex justify-between items-start w-full relative z-10 font-sans">
-                      <div className="transform group-hover:scale-[1.03] transition-transform duration-300">
-                        <StudentAvatar id={rightContestant.id} name={rightContestant.name} genre={rightContestant.genre} className="w-16 h-16 sm:w-20 sm:h-20" />
+                    {/* Pill Header Row */}
+                    <div className="flex justify-between items-center w-full relative z-10">
+                      <div className="px-3 py-1 rounded-full bg-black/60 border border-[#bc13fe]/20 font-mono text-[9px] sm:text-[10px] md:text-xs font-black select-none text-[#bc13fe] tracking-wider">
+                        VOTAR <span className="text-[#bc13fe]/70">[D]</span>
                       </div>
                       
-                      <div className="text-right">
-                        <div className="font-mono text-[10px] text-white/40 tracking-wider font-semibold">
-                          RANK #{String(sortedStudentsOfCategory.findIndex(item => item.id === rightContestant.id) + 1).padStart(2, '0')}
-                        </div>
-                        <div className="text-2xl font-black font-mono text-white mt-1">
-                          {rightContestant.elo}
-                          <span className="text-[10px] text-[#bc13fe] font-bold block">ELO SCORE</span>
-                        </div>
+                      <div className="px-3 py-1 rounded-full bg-black/60 border border-white/5 font-mono text-[9px] sm:text-[10px] md:text-xs text-white/80 font-black flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-zinc-400 fill-zinc-400/20" strokeWidth={2.5} />
+                        <span>{rightContestant.elo}</span>
                       </div>
                     </div>
 
-                    <div className="text-left w-full relative z-10 mt-auto">
-                      <div className="font-mono text-[9px] uppercase font-bold tracking-[0.2em] text-[#bc13fe] mb-2 font-mono">Votar [→] o hacer click</div>
-                      <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-2 group-hover:text-[#bc13fe] transition-colors line-clamp-1 leading-none">
+                    {/* Center Avatar Block with glowing ring */}
+                    <div className="flex justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
+                      <div className="relative rounded-full p-2 border-2 border-[#bc13fe]/20 group-hover:border-[#bc13fe]/60 group-hover:scale-[1.03] transition-all duration-300 shadow-[0_0_15px_rgba(188,19,254,0.1)] group-hover:shadow-[0_0_25px_rgba(188,19,254,0.25)]">
+                        <StudentAvatar 
+                          id={rightContestant.id} 
+                          name={rightContestant.name} 
+                          genre={rightContestant.genre} 
+                          perfilPhotoUrl={rightContestant.perfilPhotoUrl} 
+                          className="w-14 h-14 xs:w-18 xs:h-18 sm:w-24 sm:h-24 md:w-28 md:h-28" 
+                        />
+                      </div>
+                    </div>
+
+                    {/* Name and Match Subtitle */}
+                    <div className="text-center w-full relative z-10 flex-col flex items-center justify-center mt-auto">
+                      <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#bc13fe] transition-all duration-300 leading-tight line-clamp-1 select-none">
                         {rightContestant.name}
                       </h2>
                       
-                      <div className="flex gap-6 border-t border-white/5 pt-3 font-sans">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Win Rate</span>
-                          <span className="font-mono text-sm text-white font-semibold">
-                            {(rightContestant.wins + rightContestant.losses) > 0 
-                              ? ((rightContestant.wins / (rightContestant.wins + rightContestant.losses)) * 100).toFixed(1) + '%' 
-                              : '0.0%'}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Combates</span>
-                          <span className="font-mono text-sm text-[#bc13fe] font-semibold flex items-center gap-1">
-                            <Flame className="w-3 h-3" />
-                            {rightContestant.wins + rightContestant.losses}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Victorias</span>
-                          <span className="font-mono text-sm text-green-400 font-semibold">
-                            {rightContestant.wins}
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-center gap-1 mt-1 sm:mt-1.5 font-mono text-[9px] xs:text-[11px] text-[#bc13fe] font-bold tracking-wider">
+                        <Flame className="w-3.5 h-3.5 text-[#bc13fe] fill-[#bc13fe]/10" strokeWidth={2.5} />
+                        <span>{rightContestant.wins + rightContestant.losses} P • {rightContestant.wins} V</span>
                       </div>
+                    </div>
+
+                    {/* Custom Action button - looks like outlined/outline normally, solid on hover! */}
+                    <div className="w-full relative z-10 mt-3 xs:mt-5 sm:mt-6">
+                      <button
+                        type="button"
+                        className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#bc13fe] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(188,19,254,0.45)] cursor-pointer select-none"
+                      >
+                        VOTAR
+                      </button>
                     </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
+          </div>
 
           {/* SEC 3: SYSTEM COUNTDOWN LOGS PANEL */}
-          <div className="p-6 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
             <div className="flex items-center justify-between gap-4 mb-4 border-b border-white/5 pb-3">
               <div className="flex items-center space-x-2 text-gray-300">
                 <Clock className="w-4 h-4 text-[#ff007a]" />
@@ -749,7 +822,7 @@ export default function App() {
         {/* RIGHT COLUMN: LIVE STANDINGS LEADERBOARD (4 cols) */}
         <div className="lg:col-span-4 flex flex-col">
           
-          <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between h-full min-h-[520px] flex-1">
+          <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-4 sm:p-5 shadow-2xl relative overflow-hidden flex flex-col justify-start h-fit min-h-[250px] flex-1">
             <div className="font-sans">
               
               {/* Head / Header from Design markup */}
@@ -765,7 +838,7 @@ export default function App() {
                     Ningún participante registrado en esta sección.
                   </div>
                 ) : (
-                  liveStandings.map((student, idx) => {
+                  liveStandings.slice(0, 3).map((student, idx) => {
                     const position = idx + 1;
                     const isFirst = position === 1;
                     const positionColor = isFirst ? 'text-[#ff007a]' : 'text-white/40';
@@ -787,7 +860,7 @@ export default function App() {
                           {/* Avatar & Name */}
                           <div className="flex items-center space-x-2.5 min-w-0">
                             <div className="relative flex-shrink-0">
-                              <StudentAvatar id={student.id} name={student.name} genre={student.genre} className="w-8 h-8" />
+                              <StudentAvatar id={student.id} name={student.name} genre={student.genre} perfilPhotoUrl={student.perfilPhotoUrl} className="w-8 h-8" />
                               {isFirst && (
                                 <div className="absolute -top-1 -left-1 text-[9px]">👑</div>
                               )}
@@ -811,36 +884,13 @@ export default function App() {
                 )}
               </div>
             </div>
-
-            {/* Quick access to Reveal Show on standings column */}
-            <div className="mt-8 pt-4 border-t border-white/10 z-10">
-              <button
-                onClick={() => setShowRevealShow(true)}
-                className="w-full py-4 bg-gradient-to-r from-[#ff007a] to-[#bc13fe] rounded-xl font-bold uppercase tracking-widest text-[11px] shadow-[0_10px_30px_rgba(188,19,254,0.3)] hover:scale-[1.02] transition-transform active:scale-95 text-white cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-3.5 h-3.5 fill-current text-white animate-pulse" />
-                <span>Enter Reveal Show</span>
-              </button>
-            </div>
           </div>
 
         </div>
 
       </main>
 
-      {/* SYSTEM FOOTER BAR - Elegant minimalist look from design mockup */}
-      <footer className="mt-12 flex flex-col md:flex-row justify-between items-center gap-4 text-white/20 font-mono text-[9px] uppercase tracking-[0.3em] relative z-10 border-t border-white/5 pt-6 max-w-7xl mx-auto">
-        <div className="flex flex-wrap justify-center gap-8">
-          <span>Local Cache: Full Hydration</span>
-          <span>Tab Sync: Active Subscription</span>
-          <span>Latency: Multi-client Live</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span>Session: Aula de Adultos v4.0</span>
-          <div className="w-4 h-[1px] bg-white/20"></div>
-          <span className="text-[#ff007a]">MashMatch Global</span>
-        </div>
-      </footer>
+
 
       {/* OVERLAY MODAL: ADMIN DIALOG */}
       {showAdminPanel && (

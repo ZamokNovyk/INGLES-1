@@ -9,34 +9,37 @@
           "type": "string",
           "description": "Unique identifier of the student."
         },
-        "name": {
+        "nombre": {
           "type": "string",
           "description": "Full name of the student."
         },
-        "genre": {
+        "género": {
           "type": "string",
-          "enum": ["women", "men"],
-          "description": "Gender category of the student (women or men)."
+          "enum": ["hombres", "mujeres"],
+          "description": "Gender category of the student (hombres or mujeres)."
         },
         "elo": {
           "type": "number",
           "description": "Current ELO matchmaking rating."
         },
-        "wins": {
+        "votos_ganados": {
           "type": "number",
           "description": "Total number of wins."
         },
-        "losses": {
+        "votos_perdidos": {
           "type": "number",
           "description": "Total number of defeats."
         },
-        "createdAt": {
+        "perfilPhotoUrl": {
           "type": "string",
-          "format": "date-time",
-          "description": "The timestamp of when this profile was registered."
+          "description": "Dicebear or other custom avatar path."
+        },
+        "actualizadoEn": {
+          "type": "string",
+          "description": "Formatted Spanish modification timestamp."
         }
       },
-      "required": ["id", "name", "genre", "elo", "wins", "losses"]
+      "required": ["nombre", "género", "elo", "votos_ganados", "votos_perdidos"]
     },
     "Config": {
       "title": "System Config",
@@ -60,9 +63,9 @@
     }
   },
   "firestore": {
-    "students/{studentId}": {
+    "INGLES1.Estudiantes/generos/{generoId}/{studentId}": {
       "schema": "Student",
-      "description": "Collection of all participating students."
+      "description": "Nested collection of participating students categories."
     },
     "config/{configId}": {
       "schema": "Config",

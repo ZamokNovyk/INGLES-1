@@ -19,7 +19,8 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { Student, CountdownConfig, OperationType } from '../types';
-import { DEFAULT_STUDENTS } from '../defaultStudents';
+import { DEFAULT_SEED_STUDENTS, getSpanishTimestamp, normalizeNameId } from '../defaultStudents';
+import { getAvatarUrl } from '../utils';
 import { 
   Shield, 
   Lock, 
@@ -175,19 +176,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       });
 
       // 2. Loop & update all current students ELO & Wins & Losses
-      const snapshot = await getDocs(collection(db, 'students'));
-      const promises = snapshot.docs.map(studentDoc => {
-        return updateDoc(doc(db, 'students', studentDoc.id), {
-          elo: 1200,
-          wins: 0,
-          losses: 0
-        });
-      });
+      const hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
+      const mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
+      const timestampStr = getSpanishTimestamp();
+
+      const promises = [
+        ...hombresSnap.docs.map(studentDoc => {
+          return updateDoc(doc(db, 'INGLES1.Estudiantes', 'generos', 'hombres', studentDoc.id), {
+            elo: 1200,
+            votos_ganados: 0,
+            votos_perdidos: 0,
+            actualizadoEn: timestampStr
+          });
+        }),
+        ...mujeresSnap.docs.map(studentDoc => {
+          return updateDoc(doc(db, 'INGLES1.Estudiantes', 'generos', 'mujeres', studentDoc.id), {
+            elo: 1200,
+            votos_ganados: 0,
+            votos_perdidos: 0,
+            actualizadoEn: timestampStr
+          });
+        })
+      ];
 
       await Promise.all(promises);
       showStatus('¡Nueva temporada iniciada con éxito! Todos los puntajes fueron restablecidos.');
     } catch (error: any) {
-      handleFirestoreError(error, OperationType.UPDATE, 'students');
+      handleFirestoreError(error, OperationType.UPDATE, 'INGLES1.Estudiantes');
       showStatus(`Error durante el reinicio: ${error.message}`, true);
     } finally {
       setLoading(false);
@@ -210,8 +225,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     setLoading(true);
     try {
       // 1. Delete all student documents
-      const snapshot = await getDocs(collection(db, 'students'));
-      const deletePromises = snapshot.docs.map(stDoc => deleteDoc(doc(db, 'students', stDoc.id)));
+      const hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
+      const mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
+      
+      const deletePromises = [
+        ...hombresSnap.docs.map(stDoc => deleteDoc(doc(db, 'INGLES1.Estudiantes', 'generos', 'hombres', stDoc.id))),
+        ...mujeresSnap.docs.map(stDoc => deleteDoc(doc(db, 'INGLES1.Estudiantes', 'generos', 'mujeres', stDoc.id)))
+      ];
       await Promise.all(deletePromises);
 
       // 2. Setup default configurations
@@ -222,17 +242,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       });
 
       // 3. Write default seed students
-      const addPromises = DEFAULT_STUDENTS.map(student => {
-        return setDoc(doc(db, 'students', student.id), {
-          ...student,
-          createdAt: serverTimestamp()
+      const addPromises = DEFAULT_SEED_STUDENTS.map(student => {
+        const pathSegment = student.género; // 'hombres' or 'mujeres'
+        return setDoc(doc(db, 'INGLES1.Estudiantes', 'generos', pathSegment, student.id), {
+          nombre: student.nombre,
+          género: student.género,
+          elo: student.elo,
+          votos_ganados: student.votos_ganados,
+          votos_perdidos: student.votos_perdidos,
+          perfilPhotoUrl: student.perfilPhotoUrl,
+          actualizadoEn: getSpanishTimestamp()
         });
       });
 
       await Promise.all(addPromises);
       showStatus('Base de datos restaurada correctamente a los valores de fábrica de MashMatch.');
     } catch (error: any) {
-      handleFirestoreError(error, OperationType.WRITE, 'students');
+      handleFirestoreError(error, OperationType.WRITE, 'INGLES1.Estudiantes');
       showStatus(`Error durante la restauración: ${error.message}`, true);
     } finally {
       setLoading(false);
@@ -250,26 +276,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     }
 
     setLoading(true);
-    const mockId = `student_${Date.now()}`;
-    const newStudentDoc: Student = {
-      id: mockId,
-      name: newName.trim(),
-      genre: newGenre,
-      elo: 1200,
-      wins: 0,
-      losses: 0,
-      createdAt: new Date().toISOString()
-    };
+    const normalizedId = normalizeNameId(newName.trim());
+    const genrePath = newGenre === 'men' ? 'hombres' : 'mujeres';
 
     try {
-      await setDoc(doc(db, 'students', mockId), {
-        ...newStudentDoc,
-        createdAt: serverTimestamp()
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'generos', genrePath, normalizedId), {
+        nombre: newName.trim(),
+        género: genrePath,
+        elo: 1200,
+        votos_ganados: 0,
+        votos_perdidos: 0,
+        perfilPhotoUrl: getAvatarUrl(newName.trim(), newGenre),
+        actualizadoEn: getSpanishTimestamp()
       });
       setNewName('');
-      showStatus(`Estudiante "${newStudentDoc.name}" agregado con éxito.`);
+      showStatus(`Estudiante "${newName.trim()}" agregado con éxito.`);
     } catch (error: any) {
-      handleFirestoreError(error, OperationType.CREATE, `students/${mockId}`);
+      handleFirestoreError(error, OperationType.CREATE, `INGLES1.Estudiantes/generos/${genrePath}/${normalizedId}`);
       showStatus(`Error al registrar estudiante: ${error.message}`, true);
     } finally {
       setLoading(false);

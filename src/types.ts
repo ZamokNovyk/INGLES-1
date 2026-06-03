@@ -5,7 +5,9 @@ export interface Student {
   elo: number;
   wins: number;
   losses: number;
-  createdAt: any; // Can be serializable or Firestore Timestamp
+  createdAt?: any; // Can be serializable or Firestore Timestamp
+  perfilPhotoUrl?: string;
+  actualizadoEn?: string;
 }
 
 export interface CountdownConfig {

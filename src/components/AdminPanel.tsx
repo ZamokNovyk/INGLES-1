@@ -15,6 +15,7 @@ import {
   deleteDoc, 
   collection, 
   getDocs, 
+  getDoc,
   updateDoc, 
   serverTimestamp 
 } from 'firebase/firestore';
@@ -73,16 +74,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
 
   // Auth Listener
   React.useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setUserEmail(user.email);
-        // Is bootstrapped email
-        if (user.email === 'wikistars12@gmail.com') {
-          setIsAdminLoggedIn(true);
-        } else {
+        
+        // Verificar en base de datos si es admin
+        try {
+          const adminDocRef = doc(db, 'INGLES1.Estudiantes', 'registro', 'admin', user.uid);
+          const adminDocSnap = await getDoc(adminDocRef);
+
+          if (adminDocSnap.exists()) {
+            setIsAdminLoggedIn(true);
+          } else {
+            setIsAdminLoggedIn(false);
+            showStatus(`Iniciado como ${user.email}. No tienes permisos de administrador.`, true);
+            // Opcional: cerrar sesión si se detecta que no es admin
+            // await signOut(auth);
+          }
+        } catch (error) {
+          console.error('Error al verificar permisos:', error);
           setIsAdminLoggedIn(false);
-          showStatus(`Iniciado como ${user.email}. No tienes permisos de administrador.`, true);
         }
+
       } else {
         setUserEmail(null);
         setIsAdminLoggedIn(false);
@@ -105,21 +118,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Safe registration in INGLES1.Estudiantes/registro/admin/{uid}
-      const isSystemAdmin = user.email === 'wikistars12@gmail.com';
-      await setDoc(doc(db, 'INGLES1.Estudiantes', 'registro', 'admin', user.uid), {
-        id: user.uid,
-        nombre: user.displayName || 'Usuario Google',
-        email: user.email || '',
-        fotoUrl: user.photoURL || '',
-        rol: isSystemAdmin ? 'admin' : 'usuario',
-        registradoEn: getSpanishTimestamp()
-      });
+      // 1. Verificar si el usuario es administrador en la base de datos
+      const adminDocRef = doc(db, 'INGLES1.Estudiantes', 'registro', 'admin', user.uid);
+      const adminDocSnap = await getDoc(adminDocRef);
 
-      showStatus('Autenticación completada con éxito.');
+      if (!adminDocSnap.exists()) {
+        await signOut(auth);
+        showStatus('Acceso denegado: No tienes permisos de administrador.', true);
+        return;
+      }
+
+      // El usuario es administrador, proceder
+      showStatus('Autenticación de administrador completada.');
     } catch (error: any) {
       handleFirestoreError(error, OperationType.WRITE, 'INGLES1.Estudiantes/registro/admin');
-      showStatus(`Error al autenticar o registrar: ${error.message}`, true);
+      showStatus(`Error al autenticar o verificar permisos: ${error.message}`, true);
     } finally {
       setLoading(false);
     }

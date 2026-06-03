@@ -4,8 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { auth, db, handleFirestoreError } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { db, handleFirestoreError } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -32,8 +31,7 @@ import {
   Sparkles, 
   Swords, 
   ChevronRight, 
-  Plus,
-  LogIn 
+  Plus 
 } from 'lucide-react';
 
 export default function App() {
@@ -60,13 +58,6 @@ export default function App() {
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
   const [showRevealShow, setShowRevealShow] = useState<boolean>(false);
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
-  const [isAuth, setIsAuth] = useState<boolean>(false);
-
-  useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
-      setIsAuth(!!user);
-    });
-  }, []);
 
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
@@ -486,9 +477,9 @@ export default function App() {
             <button
               onClick={() => setShowAdminPanel(true)}
               className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 active:scale-95 text-[#bc13fe] hover:text-[#ff007a] transition-all cursor-pointer flex items-center"
-              title={isAuth ? "Consola de Administración" : "Iniciar sesión como Administrador"}
+              title="Consola de Administración"
             >
-              {isAuth ? <Shield className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+              <Shield className="w-4 h-4" />
             </button>
           </div>
 

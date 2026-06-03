@@ -548,6 +548,44 @@ export default function App() {
             </div>
           </div>
 
+          {/* SEC 1.5: PROMINENT ACTIVE COUNTDOWN BANNER (visible to all users during the countdown) */}
+          {countdownConfig?.isActive && !timerFinished && (
+            <div className="w-full bg-[#110c1a]/60 backdrop-blur-xl border-2 border-red-500/25 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_20px_rgba(255,0,122,0.1)]">
+              <div className="flex items-center space-x-3 text-left">
+                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-[#ff007a] animate-spin" style={{ animationDuration: '6s' }} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider font-sans flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                    CUENTA REGRESIVA ACTIVA
+                  </h3>
+                  <p className="text-gray-400 text-[11px] font-sans">
+                    La votación se cerrará y se mostrará el podio final de los 3 ganadores al llegar a cero:
+                  </p>
+                </div>
+              </div>
+              
+              {/* Premium countdown timer box */}
+              <div className="flex items-center space-x-2 font-mono text-xs bg-black/40 px-3.5 py-1.5 rounded-xl border border-white/5">
+                <div className="text-center min-w-[32px]">
+                  <span className="font-extrabold text-white text-sm">{String(timeLeft.d * 24 + timeLeft.h).padStart(2, '0')}</span>
+                  <span className="text-[7px] text-gray-500 block uppercase font-bold leading-none mt-0.5">HORAS</span>
+                </div>
+                <span className="text-white/30 font-bold">:</span>
+                <div className="text-center min-w-[32px]">
+                  <span className="font-extrabold text-[#bc13fe] text-sm">{String(timeLeft.m).padStart(2, '0')}</span>
+                  <span className="text-[7px] text-gray-500 block uppercase font-bold leading-none mt-0.5">MINS</span>
+                </div>
+                <span className="text-white/30 font-bold">:</span>
+                <div className="text-center min-w-[32px]">
+                  <span className="font-extrabold text-[#ff007a] text-sm animate-pulse">{String(timeLeft.s).padStart(2, '0')}</span>
+                  <span className="text-[7px] text-gray-500 block uppercase font-bold leading-none mt-0.5">SEGS</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* SEC 2: VOTING CARDS SCREEN WITH DYNAMIC TITLE */}
           <div className="flex flex-col space-y-3 w-full animate-fade-in">
             {!isVotingLocked && leftContestant && rightContestant && (
@@ -573,35 +611,144 @@ export default function App() {
             <div className="relative min-h-[300px] sm:min-h-[340px] flex items-center justify-center">
               <AnimatePresence mode="wait">
               {isVotingLocked ? (
-                // 🔒 VOTATION FINISHED BANNER
-                <motion.div 
-                  key="finished"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="w-full text-center p-8 rounded-2xl border border-yellow-500/20 bg-yellow-500/[0.02] backdrop-blur-md flex flex-col items-center justify-center py-16"
-                >
-                  <div className="w-20 h-20 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center mb-6 animate-bounce">
-                    <Trophy className="w-10 h-10 text-yellow-500 glow-pink" />
-                  </div>
-                  
-                  <h2 className="text-3xl font-extrabold text-white font-sans tracking-wide">
-                    ¡VOTACIÓN FINALIZADA!
-                  </h2>
-                  <p className="text-gray-400 max-w-sm mx-auto mt-3 font-sans leading-relaxed text-xs">
-                    El tiempo límite de competencia ha concluido de forma oficial. Los registros actuales ya están asegurados y el podio definitivo está listo para la ceremonia.
-                  </p>
-
-                  <div className="mt-8">
-                    <button
-                      onClick={() => setShowRevealShow(true)}
-                      className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black font-sans text-xs tracking-widest uppercase transition-all shadow-xl shadow-yellow-500/20 transform hover:-translate-y-1 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2"
+                (() => {
+                  const firstPlace = sortedStudentsOfCategory[0];
+                  const secondPlace = sortedStudentsOfCategory[1];
+                  const thirdPlace = sortedStudentsOfCategory[2];
+                  return (
+                    // 🔒 VOTATION FINISHED - DISPLAY BEAUTIFUL 3D PODIUM OF WINNERS
+                    <motion.div 
+                      key="finished-podium"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      className="w-full rounded-3xl border border-yellow-500/20 bg-linear-to-b from-yellow-500/[0.02] to-black p-4 sm:p-6 md:p-8 backdrop-blur-md flex flex-col items-center"
                     >
-                      <Sparkles className="w-4 h-4 fill-current text-black" />
-                      <span>Iniciar Show de Revelación</span>
-                    </button>
-                  </div>
-                </motion.div>
+                      <div className="text-center max-w-lg mx-auto mb-6">
+                        <div className="inline-flex p-3 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 mb-3 text-yellow-500 font-extrabold tracking-widest text-xs uppercase animate-pulse">
+                          🏆 GANADORES OFICIALES DEL CERTAMEN
+                        </div>
+                        <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter text-white uppercase leading-tight bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-500 bg-clip-text text-transparent">
+                          PODIO DE GANADORES
+                        </h2>
+                        <p className="text-gray-400 text-xs mt-2 font-sans">
+                          La cuenta regresiva ha expirado. El sistema ha consolidado las posiciones definitivas para la categoría <strong className="text-white uppercase font-black">{activeCategory === 'women' ? 'Femenino ♀' : 'Masculino ♂'}</strong>.
+                        </p>
+                      </div>
+
+                      {/* 3D / Layered Podium container */}
+                      <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-5 md:gap-4 items-end justify-center mb-8 pt-8 px-2">
+                        
+                        {/* SECOND PLACE (SILVER) - Left Column */}
+                        {secondPlace ? (
+                          <div className="flex flex-col items-center order-2 sm:order-1 mt-6 sm:mt-0">
+                            <div className="relative mb-3 group">
+                              <StudentAvatar id={secondPlace.id} name={secondPlace.name} genre={secondPlace.genre} perfilPhotoUrl={secondPlace.perfilPhotoUrl} className="w-20 h-20 border-2 border-slate-400/40 shadow-lg shadow-slate-500/5 group-hover:scale-105 transition-all duration-300" />
+                              <div className="absolute -top-2.5 -left-2.5 w-8 h-8 rounded-full bg-slate-400 text-black font-black text-xs flex items-center justify-center border-2 border-[#110c1a] shadow-lg">
+                                2
+                              </div>
+                            </div>
+                            <span className="font-bold text-white text-sm truncate max-w-[150px]" title={secondPlace.name}>{secondPlace.name}</span>
+                            <span className="text-[10px] uppercase font-mono text-slate-400 font-bold tracking-widest mb-2 mt-0.5">{activeCategory === 'women' ? 'Subcampeona' : 'Subcampeón'}</span>
+                            
+                            {/* Pedestal */}
+                            <div className="w-full bg-zinc-805/30 border border-zinc-700/30 rounded-xl p-3 flex flex-col items-center justify-center h-24 md:h-28 shadow-xl relative overflow-hidden">
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-500/5 to-transparent pointer-events-none" />
+                              <span className="text-lg font-black font-mono text-white">{secondPlace.elo}</span>
+                              <span className="text-[9px] uppercase font-mono tracking-widest text-zinc-500 block">ELO SCORE</span>
+                              <span className="text-[10px] font-mono text-zinc-400 font-bold mt-1.5">{secondPlace.wins} V</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center order-2 sm:order-1">
+                            <div className="w-full bg-white/[0.01] border border-dashed border-white/10 rounded-xl p-4 text-center text-gray-600 text-xs font-mono h-28 flex items-center justify-center">
+                              Sin subcampeón(a)
+                            </div>
+                          </div>
+                        )}
+
+                        {/* FIRST PLACE (GOLD) - Center Column */}
+                        {firstPlace ? (
+                          <div className="flex flex-col items-center order-1 sm:order-2">
+                            <div className="relative mb-4 group scale-105">
+                              <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-bounce" style={{ animationDuration: '3s' }}>👑</div>
+                              <StudentAvatar id={firstPlace.id} name={firstPlace.name} genre={firstPlace.genre} perfilPhotoUrl={firstPlace.perfilPhotoUrl} className="w-24 h-24 border-3 border-yellow-400 shadow-xl shadow-yellow-500/10 group-hover:scale-105 transition-all duration-300" />
+                              <div className="absolute -top-2 -left-2 w-9 h-9 rounded-full bg-yellow-400 text-black font-black text-sm flex items-center justify-center border-2 border-[#110c1a] shadow-lg">
+                                1
+                              </div>
+                            </div>
+                            <span className="font-extrabold text-white text-base truncate max-w-[180px] drop-shadow-[0_2px_8px_rgba(255,255,255,0.2)]" title={firstPlace.name}>{firstPlace.name}</span>
+                            <span className="text-xs uppercase font-extrabold font-mono text-yellow-400 tracking-widest mb-3 mt-1 animate-pulse">{activeCategory === 'women' ? 'Campeona 🥇' : 'Campeón 🥇'}</span>
+                            
+                            {/* Pedestal (taller) */}
+                            <div className="w-full bg-yellow-950/20 border-2 border-yellow-500/40 rounded-2xl p-4 flex flex-col items-center justify-center h-32 md:h-38 shadow-2xl relative overflow-hidden ring-4 ring-yellow-500/10">
+                              <div className="absolute inset-0 bg-gradient-to-t from-yellow-500/10 to-transparent pointer-events-none" />
+                              <span className="text-2xl font-black font-mono text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">{firstPlace.elo}</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-yellow-500/70 block font-bold">Puntuación ELO</span>
+                              <span className="text-xs font-mono text-yellow-200/80 font-black mt-2">{firstPlace.wins} V</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center order-1 sm:order-2">
+                            <div className="w-full bg-white/[0.01] border border-dashed border-white/10 rounded-xl p-4 text-center text-gray-600 text-xs font-mono h-32 flex items-center justify-center">
+                              Sin campeón(a)
+                            </div>
+                          </div>
+                        )}
+
+                        {/* THIRD PLACE (BRONZE) - Right Column */}
+                        {thirdPlace ? (
+                          <div className="flex flex-col items-center order-3 mt-6 sm:mt-0">
+                            <div className="relative mb-3 group">
+                              <StudentAvatar id={thirdPlace.id} name={thirdPlace.name} genre={thirdPlace.genre} perfilPhotoUrl={thirdPlace.perfilPhotoUrl} className="w-20 h-20 border-2 border-amber-700/40 shadow-lg shadow-amber-800/5 group-hover:scale-105 transition-all duration-300" />
+                              <div className="absolute -top-2.5 -left-2.5 w-8 h-8 rounded-full bg-amber-700 text-white font-black text-xs flex items-center justify-center border-2 border-[#110c1a] shadow-lg">
+                                3
+                              </div>
+                            </div>
+                            <span className="font-bold text-white text-sm truncate max-w-[150px]" title={thirdPlace.name}>{thirdPlace.name}</span>
+                            <span className="text-[10px] uppercase font-mono text-amber-600 font-bold tracking-widest mb-2 mt-0.5">3er Lugar</span>
+                            
+                            {/* Pedestal */}
+                            <div className="w-full bg-amber-951/20 border border-amber-800/30 rounded-xl p-3 flex flex-col items-center justify-center h-20 md:h-24 shadow-xl relative overflow-hidden">
+                              <div className="absolute inset-0 bg-gradient-to-t from-amber-700/5 to-transparent pointer-events-none" />
+                              <span className="text-lg font-black font-mono text-white">{thirdPlace.elo}</span>
+                              <span className="text-[9px] uppercase font-mono tracking-widest text-amber-600 block">ELO SCORE</span>
+                              <span className="text-[10px] font-mono text-zinc-400 font-bold mt-1.5">{thirdPlace.wins} V</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center order-3">
+                            <div className="w-full bg-white/[0.01] border border-dashed border-white/10 rounded-xl p-4 text-center text-gray-600 text-xs font-mono h-24 flex items-center justify-center">
+                              Sin 3er lugar
+                            </div>
+                          </div>
+                        )}
+
+                      </div>
+
+                      {/* Dynamic action buttons */}
+                      <div className="mt-4 flex flex-col sm:flex-row items-center gap-3 w-full max-w-md justify-center">
+                        <button
+                          onClick={() => setShowRevealShow(true)}
+                          className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black font-sans text-xs tracking-widest uppercase transition-all shadow-xl shadow-yellow-500/20 transform hover:-translate-y-0.5 hover:scale-102 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <Sparkles className="w-4 h-4 fill-current text-black" />
+                          <span>Iniciar Show de Revelación</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            // Switch category gender to inspect both podiums easily
+                            setActiveCategory(activeCategory === 'women' ? 'men' : 'women');
+                          }}
+                          className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold font-sans text-xs tracking-wider uppercase transition-all cursor-pointer text-center"
+                        >
+                          Ver {activeCategory === 'women' ? 'Masculino ♂' : 'Femenino ♀'}
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })()
               ) : !leftContestant || !rightContestant ? (
                 // ⏳ INITIAL LOADING BANNER
                 <motion.div 
@@ -739,8 +886,77 @@ export default function App() {
           </div>
           </div>
 
+        </div>
+
+        {/* RIGHT COLUMN: LIVE STANDINGS LEADERBOARD (4 cols) */}
+        <div className="lg:col-span-4 flex flex-col space-y-4">
+          
+          <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-4 sm:p-5 shadow-2xl relative overflow-hidden flex flex-col justify-start h-fit min-h-[250px] flex-grow">
+            <div className="font-sans">
+              
+              {/* Head / Header from Design markup */}
+              <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                <h3 className="text-xs font-bold tracking-[0.2em] text-white/70 uppercase">LIVE ELO STANDING</h3>
+                <div className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] font-mono text-[#bc13fe] uppercase tracking-wider animate-pulse">Syncing...</div>
+              </div>
+
+              {/* Dynamic standings list with Elegant card styling */}
+              <div className="space-y-3">
+                {liveStandings.length === 0 ? (
+                  <div className="py-12 text-center text-gray-500 text-xs font-mono leading-relaxed">
+                    Ningún participante registrado en esta sección.
+                  </div>
+                ) : (
+                  liveStandings.slice(0, 3).map((student, idx) => {
+                    const position = idx + 1;
+                    const isFirst = position === 1;
+                    const positionColor = isFirst ? 'text-[#ff007a]' : 'text-white/40';
+                    const bgGlow = isFirst 
+                      ? 'bg-white/5 border-white/10' 
+                      : 'border-white/5';
+                    
+                    return (
+                      <div 
+                        key={student.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border hover:bg-white/[0.04] transition-all relative overflow-hidden ${bgGlow}`}
+                      >
+                        <div className="flex items-center gap-3 relative z-10 min-w-0">
+                          {/* Position index */}
+                          <span className={`font-mono text-sm font-black ${positionColor}`}>
+                            {String(position).padStart(2, '0')}
+                          </span>
+
+                          {/* Avatar & Name */}
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <div className="relative flex-shrink-0">
+                              <StudentAvatar id={student.id} name={student.name} genre={student.genre} perfilPhotoUrl={student.perfilPhotoUrl} className="w-8 h-8" />
+                              {isFirst && (
+                                <div className="absolute -top-1 -left-1 text-[9px]">👑</div>
+                              )}
+                            </div>
+                            <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block">
+                              {student.name}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* rating badge */}
+                        <div className="text-right z-10 font-mono flex-shrink-0">
+                          <span className="text-sm font-extrabold text-white block">
+                            {student.elo}
+                          </span>
+                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold">ELO score</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* SEC 3: SYSTEM COUNTDOWN LOGS PANEL */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 flex-shrink-0">
             <div className="flex items-center justify-between gap-4 mb-4 border-b border-white/5 pb-3">
               <div className="flex items-center space-x-2 text-gray-300">
                 <Clock className="w-4 h-4 text-[#ff007a]" />
@@ -804,75 +1020,6 @@ export default function App() {
                 <span className="text-gray-500 text-[11px] block font-sans mt-0.5">El concurso de emparejamiento corre en modo ilimitado.</span>
               </div>
             )}
-          </div>
-
-        </div>
-
-        {/* RIGHT COLUMN: LIVE STANDINGS LEADERBOARD (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col">
-          
-          <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-4 sm:p-5 shadow-2xl relative overflow-hidden flex flex-col justify-start h-fit min-h-[250px] flex-1">
-            <div className="font-sans">
-              
-              {/* Head / Header from Design markup */}
-              <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
-                <h3 className="text-xs font-bold tracking-[0.2em] text-white/70 uppercase">LIVE ELO STANDING</h3>
-                <div className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] font-mono text-[#bc13fe] uppercase tracking-wider animate-pulse">Syncing...</div>
-              </div>
-
-              {/* Dynamic standings list with Elegant card styling */}
-              <div className="space-y-3">
-                {liveStandings.length === 0 ? (
-                  <div className="py-12 text-center text-gray-500 text-xs font-mono leading-relaxed">
-                    Ningún participante registrado en esta sección.
-                  </div>
-                ) : (
-                  liveStandings.slice(0, 3).map((student, idx) => {
-                    const position = idx + 1;
-                    const isFirst = position === 1;
-                    const positionColor = isFirst ? 'text-[#ff007a]' : 'text-white/40';
-                    const bgGlow = isFirst 
-                      ? 'bg-white/5 border-white/10' 
-                      : 'border-white/5';
-                    
-                    return (
-                      <div 
-                        key={student.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border hover:bg-white/[0.04] transition-all relative overflow-hidden ${bgGlow}`}
-                      >
-                        <div className="flex items-center gap-3 relative z-10 min-w-0">
-                          {/* Position index */}
-                          <span className={`font-mono text-sm font-black ${positionColor}`}>
-                            {String(position).padStart(2, '0')}
-                          </span>
-
-                          {/* Avatar & Name */}
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <div className="relative flex-shrink-0">
-                              <StudentAvatar id={student.id} name={student.name} genre={student.genre} perfilPhotoUrl={student.perfilPhotoUrl} className="w-8 h-8" />
-                              {isFirst && (
-                                <div className="absolute -top-1 -left-1 text-[9px]">👑</div>
-                              )}
-                            </div>
-                            <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block">
-                              {student.name}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* rating badge */}
-                        <div className="text-right z-10 font-mono flex-shrink-0">
-                          <span className="text-sm font-extrabold text-white block">
-                            {student.elo}
-                          </span>
-                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold">ELO score</span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
           </div>
 
         </div>

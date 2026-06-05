@@ -12,7 +12,8 @@ import {
   updateDoc, 
   setDoc,
   getDocs,
-  serverTimestamp 
+  serverTimestamp,
+  increment 
 } from 'firebase/firestore';
 import { Student, CountdownConfig, OperationType } from './types';
 import { DEFAULT_SEED_STUDENTS, getSpanishTimestamp, normalizeNameId } from './defaultStudents';
@@ -75,6 +76,7 @@ export default function App() {
   const [showRevealShow, setShowRevealShow] = useState<boolean>(false);
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
+  const [votesStats, setVotesStats] = useState<{ voto_general: number; voto_hombres: number; voto_mujeres: number } | null>(null);
 
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
@@ -231,10 +233,35 @@ export default function App() {
       }
     );
 
+    const unsubscribeVotes = onSnapshot(
+      doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setVotesStats({
+            voto_general: data.voto_general !== undefined ? Number(data.voto_general) : 0,
+            voto_hombres: data.voto_hombres !== undefined ? Number(data.voto_hombres) : 0,
+            voto_mujeres: data.voto_mujeres !== undefined ? Number(data.voto_mujeres) : 0
+          });
+        } else {
+          setVotesStats({ voto_general: 0, voto_hombres: 0, voto_mujeres: 0 });
+          setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen'), {
+            voto_general: 0,
+            voto_hombres: 0,
+            voto_mujeres: 0
+          }).catch(err => console.warn('Could not initialize votes summary document: ', err));
+        }
+      },
+      (error) => {
+        console.warn('Unable to subscribe to votes counter resumo doc: ', error.message);
+      }
+    );
+
     return () => {
       unsubscribeHombres();
       unsubscribeMujeres();
       unsubscribeConfig();
+      unsubscribeVotes();
     };
   }, []);
 
@@ -433,6 +460,14 @@ export default function App() {
         actualizadoEn: timestampStr
       });
 
+      // Increment general and gender-specific votes atomically
+      const votesDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen');
+      await setDoc(votesDocRef, {
+        voto_general: increment(1),
+        voto_hombres: winnerGenrePath === 'hombres' ? increment(1) : increment(0),
+        voto_mujeres: winnerGenrePath === 'mujeres' ? increment(1) : increment(0)
+      }, { merge: true });
+
       // Show immediate response swap
       selectRandomCandidates();
     } catch (err: any) {
@@ -510,18 +545,38 @@ export default function App() {
 
       {/* HEADER SECTION - Beautiful premium look */}
       <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-white/5 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tighter italic select-none">
-            MASHMATCH
-          </h1>
-          {/* Admin Panel Toggle */}
-          <button
-            onClick={() => setShowAdminPanel(true)}
-            className="p-2 sm:p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 active:scale-95 text-[#bc13fe] hover:text-[#ff007a] transition-all cursor-pointer flex items-center shadow-lg"
-            title="Consola de Administración"
-          >
-            <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
+        <div className="flex flex-col gap-1 items-start">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tighter italic select-none">
+              MASHMATCH
+            </h1>
+            {/* Admin Panel Toggle */}
+            <button
+              onClick={() => setShowAdminPanel(true)}
+              className="p-2 sm:p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 active:scale-95 text-[#bc13fe] hover:text-[#ff007a] transition-all cursor-pointer flex items-center shadow-lg"
+              title="Consola de Administración"
+            >
+              <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          </div>
+          
+          {/* Real-time Global Votes Summary Dashboard */}
+          {votesStats !== null && (
+            <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[10px] sm:text-[11px] font-mono text-slate-400 mt-1">
+              <span className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Votos Totales: <strong className="text-white font-black">{votesStats.voto_general}</strong>
+              </span>
+              <span className="text-white/15">|</span>
+              <span className="flex items-center gap-1 hover:text-[#ff007a] transition-colors duration-200">
+                <span className="text-[#ff007a] font-bold">♀</span> Mujeres: <strong className="text-white font-bold">{votesStats.voto_mujeres}</strong>
+              </span>
+              <span className="text-white/15">|</span>
+              <span className="flex items-center gap-1 hover:text-[#bc13fe] transition-colors duration-200">
+                <span className="text-[#bc13fe] font-bold">♂</span> Hombres: <strong className="text-white font-bold">{votesStats.voto_hombres}</strong>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Division switcher toggle (♀ vs ♂) */}

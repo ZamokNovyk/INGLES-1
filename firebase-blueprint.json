@@ -92,6 +92,26 @@
         }
       },
       "required": ["id", "nombre", "email", "rol", "registradoEn"]
+    },
+    "VotesCounter": {
+      "title": "Votes Counter Resumen",
+      "description": "Aggregated statistics representing general, male, and female voting tallies.",
+      "type": "object",
+      "properties": {
+        "voto_general": {
+          "type": "number",
+          "description": "Grand total of all cast votes."
+        },
+        "voto_hombres": {
+          "type": "number",
+          "description": "Total votes cast on the male category candidate."
+        },
+        "voto_mujeres": {
+          "type": "number",
+          "description": "Total votes cast on the female category candidate."
+        }
+      },
+      "required": ["voto_general", "voto_hombres", "voto_mujeres"]
     }
   },
   "firestore": {
@@ -110,6 +130,10 @@
     "INGLES1.Estudiantes/configuracion/config/{configId}": {
       "schema": "Config",
       "description": "Nested configuration subcollection matching CTA7 layout."
+    },
+    "INGLES1.Estudiantes/configuracion/votos/{documentId}": {
+      "schema": "VotesCounter",
+      "description": "Subcollection under configuracion documenting general and gender-specific vote statistics."
     }
   }
 }

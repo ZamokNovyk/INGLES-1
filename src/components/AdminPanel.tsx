@@ -207,6 +207,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
         lastResetAt: new Date().toISOString()
       });
 
+      // 1b. Reset aggregate votes counter
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen'), {
+        voto_general: 0,
+        voto_hombres: 0,
+        voto_mujeres: 0
+      });
+
       // 2. Loop & update all current students ELO & Wins & Losses
       const hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
       const mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
@@ -272,6 +279,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
         targetDate: new Date().toISOString(),
         isActive: false,
         lastResetAt: new Date().toISOString()
+      });
+
+      // 2b. Reset aggregate votes counter
+      await setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen'), {
+        voto_general: 0,
+        voto_hombres: 0,
+        voto_mujeres: 0
       });
 
       // 3. Write default seed students

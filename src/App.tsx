@@ -74,6 +74,7 @@ export default function App() {
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
   const [showRevealShow, setShowRevealShow] = useState<boolean>(false);
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
+  const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
 
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
@@ -365,9 +366,11 @@ export default function App() {
   // 5. Atomic ELO Voting & Expected Score logic calculation (Requirement 2)
   const castVote = async (winnerId: string, loserId: string) => {
     const isLocked = timerFinished && (countdownConfig?.isActive ?? false);
-    if (isLocked) return; // Prevent voting inside locks
+    if (isLocked || votingInProgress) return; // Prevent double voting or key jamming
 
     if (!leftContestant || !rightContestant) return;
+
+    setVotingInProgress(true);
 
     const leftIsWinner = leftContestant.id === winnerId;
     const winnerObj = leftIsWinner ? leftContestant : rightContestant;
@@ -434,6 +437,8 @@ export default function App() {
       selectRandomCandidates();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `INGLES1.Estudiantes/generos/${winnerObj.genre === 'men' ? 'hombres' : 'mujeres'}/${winnerObj.id}`);
+    } finally {
+      setVotingInProgress(false);
     }
   };
 
@@ -442,7 +447,7 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip if voting is locked
       const isLocked = timerFinished && (countdownConfig?.isActive ?? false);
-      if (isLocked) return;
+      if (isLocked || votingInProgress) return;
 
       if (!leftContestant || !rightContestant) return;
 
@@ -455,7 +460,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [leftContestant, rightContestant, timerFinished, countdownConfig]);
+  }, [leftContestant, rightContestant, timerFinished, countdownConfig, votingInProgress]);
 
   // Compute Vote Progress Stats (Percentage of combinations voted)
   const getProgressStats = () => {
@@ -828,8 +833,12 @@ export default function App() {
                 >
                   {/* LEFT NOMINEE */}
                   <div 
-                    onClick={() => castVote(leftContestant.id, rightContestant.id)}
-                    className="group relative cursor-pointer overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 hover:border-[#ff007a]/40 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,122,0.15)] hover:scale-[1.01] active:scale-[0.99] h-[340px] xs:h-[390px] sm:h-[450px]"
+                    onClick={() => !votingInProgress && castVote(leftContestant.id, rightContestant.id)}
+                    className={`group relative overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 h-[340px] xs:h-[390px] sm:h-[450px] ${
+                      votingInProgress 
+                        ? 'opacity-50 pointer-events-none cursor-default' 
+                        : 'cursor-pointer hover:border-[#ff007a]/40 hover:shadow-[0_0_30px_rgba(255,0,122,0.15)] hover:scale-[1.01] active:scale-[0.99]'
+                    }`}
                   >
                     {/* Pill Header Row */}
                     <div className="flex justify-between items-center w-full relative z-10">
@@ -874,7 +883,7 @@ export default function App() {
                         type="button"
                         className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#ff007a] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(255,0,122,0.45)] cursor-pointer select-none"
                       >
-                        VOTAR
+                        {votingInProgress ? 'ESPERA...' : 'VOTAR'}
                       </button>
                     </div>
                   </div>
@@ -889,8 +898,12 @@ export default function App() {
 
                   {/* RIGHT NOMINEE */}
                   <div 
-                    onClick={() => castVote(rightContestant.id, leftContestant.id)}
-                    className="group relative cursor-pointer overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 hover:border-[#bc13fe]/40 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-[0_0_30px_rgba(188,19,254,0.15)] hover:scale-[1.01] active:scale-[0.99] h-[340px] xs:h-[390px] sm:h-[450px]"
+                    onClick={() => !votingInProgress && castVote(rightContestant.id, leftContestant.id)}
+                    className={`group relative overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 h-[340px] xs:h-[390px] sm:h-[450px] ${
+                      votingInProgress 
+                        ? 'opacity-50 pointer-events-none cursor-default' 
+                        : 'cursor-pointer hover:border-[#bc13fe]/40 hover:shadow-[0_0_30px_rgba(188,19,254,0.15)] hover:scale-[1.01] active:scale-[0.99]'
+                    }`}
                   >
                     {/* Pill Header Row */}
                     <div className="flex justify-between items-center w-full relative z-10">
@@ -935,7 +948,7 @@ export default function App() {
                         type="button"
                         className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#bc13fe] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(188,19,254,0.45)] cursor-pointer select-none"
                       >
-                        VOTAR
+                        {votingInProgress ? 'ESPERA...' : 'VOTAR'}
                       </button>
                     </div>
                   </div>

@@ -848,14 +848,6 @@ export default function App() {
                       {/* Dynamic action buttons */}
                       <div className="mt-4 flex flex-col sm:flex-row items-center gap-3 w-full max-w-md justify-center">
                         <button
-                          onClick={() => setShowRevealShow(true)}
-                          className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black font-sans text-xs tracking-widest uppercase transition-all shadow-xl shadow-yellow-500/20 transform hover:-translate-y-0.5 hover:scale-102 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          <Sparkles className="w-4 h-4 fill-current text-black" />
-                          <span>Iniciar Show de Revelación</span>
-                        </button>
-                        
-                        <button
                           onClick={() => {
                             // Switch category gender to inspect both podiums easily
                             setActiveCategory(activeCategory === 'women' ? 'men' : 'women');

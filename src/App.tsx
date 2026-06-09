@@ -13,7 +13,10 @@ import {
   setDoc,
   getDocs,
   serverTimestamp,
-  increment 
+  increment,
+  query,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { Student, CountdownConfig, OperationType } from './types';
 import { DEFAULT_SEED_STUDENTS, getSpanishTimestamp, normalizeNameId } from './defaultStudents';
@@ -76,7 +79,6 @@ export default function App() {
   const [showRevealShow, setShowRevealShow] = useState<boolean>(false);
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
-  const [votesStats, setVotesStats] = useState<{ voto_general: number; voto_hombres: number; voto_mujeres: number } | null>(null);
 
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
@@ -118,40 +120,11 @@ export default function App() {
       }
     }
 
-    // Phase B: Attach live Firestore snapshot listening for both Hombres and Mujeres
-    const currentStudentsTemp: { [id: string]: Student } = {};
-
-    const handleSnapshotUpdate = (snapshot: any, collectionGenre: 'men' | 'women') => {
-      // First, remove existing ones for this genre to allow sync deletion or updates
-      Object.keys(currentStudentsTemp).forEach((id) => {
-        if (currentStudentsTemp[id].genre === collectionGenre) {
-          delete currentStudentsTemp[id];
-        }
-      });
-
-      snapshot.forEach((docSnap: any) => {
-        const data = docSnap.data();
-        currentStudentsTemp[docSnap.id] = {
-          id: docSnap.id,
-          name: data.nombre || '',
-          genre: collectionGenre,
-          elo: data.elo !== undefined ? Number(data.elo) : 1200,
-          wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
-          losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
-          perfilPhotoUrl: data.perfilPhotoUrl || '',
-          actualizadoEn: data.actualizadoEn || '',
-        };
-      });
-
-      const list = Object.values(currentStudentsTemp);
-      setStudents(list);
-      localStorage.setItem('mashMatch_cached_students', JSON.stringify(list));
-    };
-
-    const checkAndSeed = async () => {
+    // Phase B: Optimize data load by doing a SINGLE batch load of all students on startup
+    const checkAndSeedAndFetch = async () => {
       try {
-        const hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
-        const mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
+        let hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
+        let mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
         
         if (hombresSnap.empty && mujeresSnap.empty) {
           console.log('Database empty, seeding default students...');
@@ -169,30 +142,109 @@ export default function App() {
           });
           await Promise.all(seedPromises);
           console.log('Seeded database with new roster successfully.');
+          
+          hombresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'));
+          mujeresSnap = await getDocs(collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'));
         }
+
+        const list: Student[] = [];
+        hombresSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            name: data.nombre || '',
+            genre: 'men',
+            elo: data.elo !== undefined ? Number(data.elo) : 1200,
+            wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
+            losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
+            perfilPhotoUrl: data.perfilPhotoUrl || '',
+            actualizadoEn: data.actualizadoEn || '',
+          });
+        });
+
+        mujeresSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            name: data.nombre || '',
+            genre: 'women',
+            elo: data.elo !== undefined ? Number(data.elo) : 1200,
+            wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
+            losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
+            perfilPhotoUrl: data.perfilPhotoUrl || '',
+            actualizadoEn: data.actualizadoEn || '',
+          });
+        });
+
+        setStudents(list);
+        localStorage.setItem('mashMatch_cached_students', JSON.stringify(list));
       } catch (e) {
-        console.error('Failure seeding default students in background', e);
+        console.error('Failure seeding or fetching students on startup', e);
       }
     };
-    checkAndSeed();
+    checkAndSeedAndFetch();
+
+    // Setup an optimized Live update listener that ONLY listens to the Top 10 of each genre (minimizing read amplification)
+    const handleTopSnapshotUpdate = (snapshot: any, categoryGenre: 'men' | 'women') => {
+      const topMap = new Map<string, Student>();
+      snapshot.forEach((docSnap: any) => {
+        const data = docSnap.data();
+        topMap.set(docSnap.id, {
+          id: docSnap.id,
+          name: data.nombre || '',
+          genre: categoryGenre,
+          elo: data.elo !== undefined ? Number(data.elo) : 1200,
+          wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
+          losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
+          perfilPhotoUrl: data.perfilPhotoUrl || '',
+          actualizadoEn: data.actualizadoEn || '',
+        });
+      });
+
+      setStudents((prev) => {
+        const prevMap = new Map<string, Student>();
+        prev.forEach(s => prevMap.set(s.id, s));
+
+        // Sync or overwrite the items in Top 10
+        topMap.forEach((student, id) => {
+          prevMap.set(id, student);
+        });
+
+        const nextList = Array.from(prevMap.values());
+        localStorage.setItem('mashMatch_cached_students', JSON.stringify(nextList));
+        return nextList;
+      });
+    };
+
+    const hombresTopQuery = query(
+      collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'),
+      orderBy('elo', 'desc'),
+      limit(3)
+    );
+
+    const mujeresTopQuery = query(
+      collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'),
+      orderBy('elo', 'desc'),
+      limit(3)
+    );
 
     const unsubscribeHombres = onSnapshot(
-      collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'),
+      hombresTopQuery,
       (snapshot) => {
-        handleSnapshotUpdate(snapshot, 'men');
+        handleTopSnapshotUpdate(snapshot, 'men');
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'INGLES1.Estudiantes/generos/hombres');
+        handleFirestoreError(error, OperationType.LIST, 'INGLES1.Estudiantes/generos/hombres (top 10)');
       }
     );
 
     const unsubscribeMujeres = onSnapshot(
-      collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'),
+      mujeresTopQuery,
       (snapshot) => {
-        handleSnapshotUpdate(snapshot, 'women');
+        handleTopSnapshotUpdate(snapshot, 'women');
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'INGLES1.Estudiantes/generos/mujeres');
+        handleFirestoreError(error, OperationType.LIST, 'INGLES1.Estudiantes/generos/mujeres (top 10)');
       }
     );
 
@@ -233,35 +285,10 @@ export default function App() {
       }
     );
 
-    const unsubscribeVotes = onSnapshot(
-      doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen'),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setVotesStats({
-            voto_general: data.voto_general !== undefined ? Number(data.voto_general) : 0,
-            voto_hombres: data.voto_hombres !== undefined ? Number(data.voto_hombres) : 0,
-            voto_mujeres: data.voto_mujeres !== undefined ? Number(data.voto_mujeres) : 0
-          });
-        } else {
-          setVotesStats({ voto_general: 0, voto_hombres: 0, voto_mujeres: 0 });
-          setDoc(doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen'), {
-            voto_general: 0,
-            voto_hombres: 0,
-            voto_mujeres: 0
-          }).catch(err => console.warn('Could not initialize votes summary document: ', err));
-        }
-      },
-      (error) => {
-        console.warn('Unable to subscribe to votes counter resumo doc: ', error.message);
-      }
-    );
-
     return () => {
       unsubscribeHombres();
       unsubscribeMujeres();
       unsubscribeConfig();
-      unsubscribeVotes();
     };
   }, []);
 
@@ -427,6 +454,31 @@ export default function App() {
       localStorage.setItem('mashMatch_voted_pairs', JSON.stringify(updatedVotedPairs));
     }
 
+    // Update local student stats immediately in client-side state for zero lag & zero read cost
+    setStudents(prev => {
+      const nextStudents = prev.map(s => {
+        if (s.id === winnerObj.id) {
+          return {
+            ...s,
+            elo: newWinnerElo,
+            wins: winnerWins,
+            actualizadoEn: getSpanishTimestamp()
+          };
+        }
+        if (s.id === loserObj.id) {
+          return {
+            ...s,
+            elo: newLoserElo,
+            losses: loserLosses,
+            actualizadoEn: getSpanishTimestamp()
+          };
+        }
+        return s;
+      });
+      localStorage.setItem('mashMatch_cached_students', JSON.stringify(nextStudents));
+      return nextStudents;
+    });
+
     playVoteSound(true);
 
     try {
@@ -559,24 +611,6 @@ export default function App() {
               <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
-          
-          {/* Real-time Global Votes Summary Dashboard */}
-          {votesStats !== null && (
-            <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[10px] sm:text-[11px] font-mono text-slate-400 mt-1">
-              <span className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Votos Totales: <strong className="text-white font-black">{votesStats.voto_general}</strong>
-              </span>
-              <span className="text-white/15">|</span>
-              <span className="flex items-center gap-1 hover:text-[#ff007a] transition-colors duration-200">
-                <span className="text-[#ff007a] font-bold">♀</span> Mujeres: <strong className="text-white font-bold">{votesStats.voto_mujeres}</strong>
-              </span>
-              <span className="text-white/15">|</span>
-              <span className="flex items-center gap-1 hover:text-[#bc13fe] transition-colors duration-200">
-                <span className="text-[#bc13fe] font-bold">♂</span> Hombres: <strong className="text-white font-bold">{votesStats.voto_hombres}</strong>
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Division switcher toggle (♀ vs ♂) */}
@@ -668,44 +702,6 @@ export default function App() {
               <span>Por votar: <strong className="text-[#bc13fe]">{currentStats.pending}</strong></span>
             </div>
           </div>
-
-          {/* SEC 1.5: PROMINENT ACTIVE COUNTDOWN BANNER (visible to all users during the countdown) */}
-          {countdownConfig?.isActive && !timerFinished && (
-            <div className="w-full bg-[#110c1a]/60 backdrop-blur-xl border-2 border-red-500/25 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_20px_rgba(255,0,122,0.1)]">
-              <div className="flex items-center space-x-3 text-left">
-                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-[#ff007a] animate-spin" style={{ animationDuration: '6s' }} />
-                </div>
-                <div>
-                  <h3 className="text-xs font-black text-white uppercase tracking-wider font-sans flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-                    CUENTA REGRESIVA ACTIVA
-                  </h3>
-                  <p className="text-gray-400 text-[11px] font-sans">
-                    La votación se cerrará y se mostrará el podio final de los 3 ganadores al llegar a cero:
-                  </p>
-                </div>
-              </div>
-              
-              {/* Premium countdown timer box */}
-              <div className="flex items-center space-x-2 font-mono text-xs bg-black/40 px-3.5 py-1.5 rounded-xl border border-white/5">
-                <div className="text-center min-w-[32px]">
-                  <span className="font-extrabold text-white text-sm">{String(timeLeft.d * 24 + timeLeft.h).padStart(2, '0')}</span>
-                  <span className="text-[7px] text-gray-500 block uppercase font-bold leading-none mt-0.5">HORAS</span>
-                </div>
-                <span className="text-white/30 font-bold">:</span>
-                <div className="text-center min-w-[32px]">
-                  <span className="font-extrabold text-[#bc13fe] text-sm">{String(timeLeft.m).padStart(2, '0')}</span>
-                  <span className="text-[7px] text-gray-500 block uppercase font-bold leading-none mt-0.5">MINS</span>
-                </div>
-                <span className="text-white/30 font-bold">:</span>
-                <div className="text-center min-w-[32px]">
-                  <span className="font-extrabold text-[#ff007a] text-sm animate-pulse">{String(timeLeft.s).padStart(2, '0')}</span>
-                  <span className="text-[7px] text-gray-500 block uppercase font-bold leading-none mt-0.5">SEGS</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* SEC 2: VOTING CARDS SCREEN WITH DYNAMIC TITLE */}
           <div className="flex flex-col space-y-3 w-full animate-fade-in">
@@ -892,11 +888,6 @@ export default function App() {
                       <div className="px-3 py-1 rounded-full bg-black/60 border border-[#ff007a]/20 font-mono text-[9px] sm:text-[10px] md:text-xs font-black select-none text-[#ff007a] tracking-wider">
                         VOTAR <span className="text-[#ff007a]/70">[A]</span>
                       </div>
-                      
-                      <div className="px-3 py-1 rounded-full bg-black/60 border border-white/5 font-mono text-[9px] sm:text-[10px] md:text-xs text-white/80 font-black flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-zinc-400 fill-zinc-400/20" strokeWidth={2.5} />
-                        <span>{leftContestant.elo}</span>
-                      </div>
                     </div>
 
                     {/* Center Avatar Block with glowing ring */}
@@ -917,11 +908,6 @@ export default function App() {
                       <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#ff007a] transition-all duration-300 leading-tight select-none px-1">
                         {leftContestant.name}
                       </h2>
-                      
-                      <div className="flex items-center justify-center gap-1 mt-1 sm:mt-1.5 font-mono text-[9px] xs:text-[11px] text-[#ff007a] font-bold tracking-wider">
-                        <Flame className="w-3.5 h-3.5 text-[#ff007a] fill-[#ff007a]/10" strokeWidth={2.5} />
-                        <span>{leftContestant.wins + leftContestant.losses} P • {leftContestant.wins} V</span>
-                      </div>
                     </div>
 
                     {/* Custom Action button - looks like outlined/outline normally, solid on hover! */}
@@ -957,11 +943,6 @@ export default function App() {
                       <div className="px-3 py-1 rounded-full bg-black/60 border border-[#bc13fe]/20 font-mono text-[9px] sm:text-[10px] md:text-xs font-black select-none text-[#bc13fe] tracking-wider">
                         VOTAR <span className="text-[#bc13fe]/70">[D]</span>
                       </div>
-                      
-                      <div className="px-3 py-1 rounded-full bg-black/60 border border-white/5 font-mono text-[9px] sm:text-[10px] md:text-xs text-white/80 font-black flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-zinc-400 fill-zinc-400/20" strokeWidth={2.5} />
-                        <span>{rightContestant.elo}</span>
-                      </div>
                     </div>
 
                     {/* Center Avatar Block with glowing ring */}
@@ -982,11 +963,6 @@ export default function App() {
                       <h2 className="text-xs xs:text-sm sm:text-lg md:text-xl font-black text-white group-hover:text-[#bc13fe] transition-all duration-300 leading-tight select-none px-1">
                         {rightContestant.name}
                       </h2>
-                      
-                      <div className="flex items-center justify-center gap-1 mt-1 sm:mt-1.5 font-mono text-[9px] xs:text-[11px] text-[#bc13fe] font-bold tracking-wider">
-                        <Flame className="w-3.5 h-3.5 text-[#bc13fe] fill-[#bc13fe]/10" strokeWidth={2.5} />
-                        <span>{rightContestant.wins + rightContestant.losses} P • {rightContestant.wins} V</span>
-                      </div>
                     </div>
 
                     {/* Custom Action button - looks like outlined/outline normally, solid on hover! */}

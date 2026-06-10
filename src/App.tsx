@@ -79,6 +79,12 @@ export default function App() {
   const [showRevealShow, setShowRevealShow] = useState<boolean>(false);
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
+  const [visibleCount, setVisibleCount] = useState<number>(3);
+
+  // Reset visible leaderboard count when changing gender categories
+  useEffect(() => {
+    setVisibleCount(3);
+  }, [activeCategory]);
 
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
@@ -582,8 +588,8 @@ export default function App() {
       return b.wins - a.wins;
     });
 
-  // Get Top 5 ranking for Live ELO Standings
-  const liveStandings = sortedStudentsOfCategory.slice(0, 5);
+  // Get visible ranking for Live ELO Standings based on visibleCount state
+  const liveStandings = sortedStudentsOfCategory.slice(0, visibleCount);
 
   const isVotingLocked = timerFinished && (countdownConfig?.isActive ?? false);
 
@@ -1002,10 +1008,21 @@ export default function App() {
                     Ningún participante registrado en esta sección.
                   </div>
                 ) : (
-                  liveStandings.slice(0, 3).map((student, idx) => {
+                  liveStandings.map((student, idx) => {
                     const position = idx + 1;
                     const isFirst = position === 1;
-                    const positionColor = isFirst ? 'text-[#ff007a]' : 'text-white/40';
+                    const isSecond = position === 2;
+                    const isThird = position === 3;
+                    
+                    let positionColor = 'text-white/40';
+                    if (isFirst) {
+                      positionColor = 'text-[#ff007a]';
+                    } else if (isSecond) {
+                      positionColor = 'text-[#bc13fe]';
+                    } else if (isThird) {
+                      positionColor = 'text-[#00f0ff]';
+                    }
+
                     const bgGlow = isFirst 
                       ? 'bg-white/5 border-white/10' 
                       : 'border-white/5';
@@ -1020,7 +1037,7 @@ export default function App() {
                           <span className={`font-mono text-sm font-black ${positionColor}`}>
                             {String(position).padStart(2, '0')}
                           </span>
-
+ 
                           {/* Avatar & Name */}
                           <div className="flex items-center space-x-2.5 min-w-0">
                             <div className="relative flex-shrink-0">
@@ -1034,7 +1051,7 @@ export default function App() {
                             </span>
                           </div>
                         </div>
-
+ 
                         {/* rating badge */}
                         <div className="text-right z-10 font-mono flex-shrink-0">
                           <span className="text-sm font-extrabold text-white block">
@@ -1047,6 +1064,19 @@ export default function App() {
                   })
                 )}
               </div>
+
+              {/* "Ver más" button to increment visible profiles by 4 */}
+              {visibleCount < sortedStudentsOfCategory.length && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 4)}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold font-sans tracking-widest uppercase text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <Plus className="w-4 h-4 text-slate-400" />
+                    <span>Ver más</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

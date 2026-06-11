@@ -648,7 +648,7 @@ export default function App() {
         {countdownConfig?.isActive && (
           <div className="flex items-center gap-3 bg-white/5 border border-white/5 px-3 py-1.5 rounded-xl">
             <span className="font-mono text-[9px] text-white/40 uppercase tracking-widest leading-none">
-              Countdown:
+              Termina en:
             </span>
             <div className="flex gap-2">
               <div className="flex items-center">

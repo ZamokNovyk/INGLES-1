@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { db, handleFirestoreError } from './firebase';
+import { db, handleFirestoreError, auth } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -12,6 +12,7 @@ import {
   updateDoc, 
   setDoc,
   getDocs,
+  getDoc,
   serverTimestamp,
   increment,
   query,
@@ -85,6 +86,31 @@ export default function App() {
   useEffect(() => {
     setVisibleCount(3);
   }, [activeCategory]);
+
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
+  // Listen to Auth State to identify if the logged-in user is an admin
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          const adminDocRef = doc(db, 'INGLES1.Estudiantes', 'registro', 'admin', user.uid);
+          const adminDocSnap = await getDoc(adminDocRef);
+          if (adminDocSnap.exists()) {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          console.error('Error verifying admin status:', error);
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
@@ -562,6 +588,40 @@ export default function App() {
       handleFirestoreError(err, OperationType.UPDATE, `INGLES1.Estudiantes/generos/${winnerObj.genre === 'men' ? 'hombres' : 'mujeres'}/${winnerObj.id}`);
     } finally {
       setVotingInProgress(false);
+    }
+  };
+
+  const handleAdminAdjustment = async (student: Student, type: 'crowns', amount: number) => {
+    if (!isAdmin) return;
+    try {
+      const studentRef = doc(
+        db, 
+        'INGLES1.Estudiantes', 
+        'generos', 
+        student.genre === 'men' ? 'hombres' : 'mujeres', 
+        student.id
+      );
+      
+      const currentCrowns = student.coronas || 0;
+      const newCrowns = Math.max(0, currentCrowns + amount);
+      
+      setStudents(prev => {
+        const nextStudents = prev.map(s => {
+          if (s.id === student.id) {
+            return { ...s, coronas: newCrowns };
+          }
+          return s;
+        });
+        localStorage.setItem('mashMatch_cached_students', JSON.stringify(nextStudents));
+        return nextStudents;
+      });
+
+      await updateDoc(studentRef, {
+        coronas: newCrowns,
+        actualizadoEn: getSpanishTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating crowns:', error);
     }
   };
 
@@ -1080,11 +1140,45 @@ export default function App() {
                               <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block leading-tight">
                                 {student.name}
                               </span>
-                              {student.coronas !== undefined && student.coronas > 0 ? (
-                                <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 mt-0.5 select-none font-sans">
-                                  👑 {student.coronas}
-                                </span>
-                              ) : null}
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {student.coronas !== undefined && student.coronas > 0 ? (
+                                  <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
+                                    👑 {student.coronas}
+                                  </span>
+                                ) : (
+                                  isAdmin && (
+                                    <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
+                                      👑 0
+                                    </span>
+                                  )
+                                )}
+                                {isAdmin && (
+                                  <div className="flex items-center gap-1 select-none">
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleAdminAdjustment(student, 'crowns', -1);
+                                      }}
+                                      className="w-5 h-5 flex items-center justify-center rounded bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 border border-rose-500/20 text-[10px] font-black cursor-pointer leading-none"
+                                      title="Quitar corona"
+                                    >
+                                      -
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleAdminAdjustment(student, 'crowns', 1);
+                                      }}
+                                      className="w-5 h-5 flex items-center justify-center rounded bg-yellow-500/10 hover:bg-yellow-500/20 active:scale-95 text-yellow-400 border border-yellow-500/20 text-[10px] font-black cursor-pointer leading-none"
+                                      title="Agregar corona"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

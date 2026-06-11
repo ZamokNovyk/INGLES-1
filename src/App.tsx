@@ -480,11 +480,11 @@ export default function App() {
     const winnerWins = winnerObj.wins + 1;
     const loserLosses = loserObj.losses + 1;
 
-    // Check if the winner becomes the new Top 1 in their gender category
+    // Check if the Top 1 student in their category changed (new claimant)
     const genre = winnerObj.genre;
     const sameGenreStudents = students.filter(s => s.genre === genre);
     const sortedSameGenreBefore = [...sameGenreStudents].sort((a, b) => b.elo - a.elo);
-    const previousTopId = sortedSameGenreBefore[0]?.id || null;
+    const previousTopStudent = sortedSameGenreBefore[0] || null;
 
     const updatedGenreStudents = sameGenreStudents.map(s => {
       if (s.id === winnerObj.id) {
@@ -496,13 +496,21 @@ export default function App() {
       return s;
     });
     const sortedSameGenreAfter = [...updatedGenreStudents].sort((a, b) => b.elo - a.elo);
-    const newTopId = sortedSameGenreAfter[0]?.id || null;
+    const newTopStudent = sortedSameGenreAfter[0] || null;
 
-    // Award a Crown if the winner newly claimed the top spot of their genre
-    const winnerBecameNewTop = (newTopId === winnerObj.id && previousTopId !== winnerObj.id);
-    const winnerCoronas = winnerBecameNewTop
-      ? (winnerObj.coronas || 0) + 1
-      : (winnerObj.coronas || 0);
+    // Determine who became the new top student
+    const leaderChanged = previousTopStudent && newTopStudent && (previousTopStudent.id !== newTopStudent.id);
+
+    // If the winner newly took the top spot, they get +1 crown
+    let winnerCoronas = winnerObj.coronas || 0;
+    if (newTopStudent && newTopStudent.id === winnerObj.id && (!previousTopStudent || previousTopStudent.id !== winnerObj.id)) {
+      winnerCoronas = (winnerObj.coronas || 0) + 1;
+    }
+
+    // Is there a passive new leader? (Someone other than the winner who became Top 1 because the former leader lost)
+    const passiveLeaderId = (leaderChanged && newTopStudent && newTopStudent.id !== winnerObj.id) ? newTopStudent.id : null;
+    const passiveLeaderObj = passiveLeaderId ? sameGenreStudents.find(s => s.id === passiveLeaderId) : null;
+    const passiveLeaderCoronas = passiveLeaderObj ? (passiveLeaderObj.coronas || 0) + 1 : 0;
 
     // Track state locally for progress bar
     const sortedPairKey = [winnerId, loserId].sort().join('_');
@@ -530,6 +538,13 @@ export default function App() {
             ...s,
             elo: newLoserElo,
             losses: loserLosses,
+            actualizadoEn: getSpanishTimestamp()
+          };
+        }
+        if (passiveLeaderId && s.id === passiveLeaderId) {
+          return {
+            ...s,
+            coronas: passiveLeaderCoronas,
             actualizadoEn: getSpanishTimestamp()
           };
         }
@@ -573,6 +588,20 @@ export default function App() {
         actualizadoEn: timestampStr,
         coronas: loserObj.coronas || 0
       });
+
+      if (passiveLeaderId && passiveLeaderObj) {
+        const passiveRef = doc(db, 'INGLES1.Estudiantes', 'generos', winnerGenrePath, passiveLeaderId);
+        await setDoc(passiveRef, {
+          nombre: passiveLeaderObj.name,
+          género: winnerGenrePath,
+          elo: passiveLeaderObj.elo,
+          votos_ganados: passiveLeaderObj.wins,
+          votos_perdidos: passiveLeaderObj.losses,
+          perfilPhotoUrl: passiveLeaderObj.perfilPhotoUrl || '',
+          actualizadoEn: timestampStr,
+          coronas: passiveLeaderCoronas
+        });
+      }
 
       // Increment general and gender-specific votes atomically
       const votesDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen');

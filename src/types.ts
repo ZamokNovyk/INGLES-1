@@ -8,6 +8,7 @@ export interface Student {
   createdAt?: any; // Can be serializable or Firestore Timestamp
   perfilPhotoUrl?: string;
   actualizadoEn?: string;
+  coronas?: number;
 }
 
 export interface CountdownConfig {

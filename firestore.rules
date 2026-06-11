@@ -21,7 +21,8 @@ service cloud.firestore {
              data.get('género', '') is string && (data.get('género', '') == "hombres" || data.get('género', '') == "mujeres") &&
              data.elo is number &&
              data.votos_ganados is number &&
-             data.votos_perdidos is number;
+             data.votos_perdidos is number &&
+             data.get('coronas', 0) is number;
     }
 
     function isValidConfig(data) {
@@ -60,7 +61,7 @@ service cloud.firestore {
         isValidNewStudent(request.resource.data) &&
         request.resource.data.nombre == resource.data.nombre &&
         request.resource.data.get('género', '') == resource.data.get('género', '') &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['elo', 'votos_ganados', 'votos_perdidos', 'actualizadoEn'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['elo', 'votos_ganados', 'votos_perdidos', 'actualizadoEn', 'coronas'])
       ));
     }
 

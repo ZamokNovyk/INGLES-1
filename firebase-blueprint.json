@@ -30,6 +30,10 @@
           "type": "number",
           "description": "Total number of defeats."
         },
+        "coronas": {
+          "type": "number",
+          "description": "Total number of times this student held/reached the #1 spot."
+        },
         "perfilPhotoUrl": {
           "type": "string",
           "description": "Dicebear or other custom avatar path."

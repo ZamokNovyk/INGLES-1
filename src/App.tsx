@@ -165,6 +165,7 @@ export default function App() {
             losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
             perfilPhotoUrl: data.perfilPhotoUrl || '',
             actualizadoEn: data.actualizadoEn || '',
+            coronas: data.coronas !== undefined ? Number(data.coronas) : 0,
           });
         });
 
@@ -179,6 +180,7 @@ export default function App() {
             losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
             perfilPhotoUrl: data.perfilPhotoUrl || '',
             actualizadoEn: data.actualizadoEn || '',
+            coronas: data.coronas !== undefined ? Number(data.coronas) : 0,
           });
         });
 
@@ -204,6 +206,7 @@ export default function App() {
           losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
           perfilPhotoUrl: data.perfilPhotoUrl || '',
           actualizadoEn: data.actualizadoEn || '',
+          coronas: data.coronas !== undefined ? Number(data.coronas) : 0,
         });
       });
 
@@ -451,6 +454,30 @@ export default function App() {
     const winnerWins = winnerObj.wins + 1;
     const loserLosses = loserObj.losses + 1;
 
+    // Check if the winner becomes the new Top 1 in their gender category
+    const genre = winnerObj.genre;
+    const sameGenreStudents = students.filter(s => s.genre === genre);
+    const sortedSameGenreBefore = [...sameGenreStudents].sort((a, b) => b.elo - a.elo);
+    const previousTopId = sortedSameGenreBefore[0]?.id || null;
+
+    const updatedGenreStudents = sameGenreStudents.map(s => {
+      if (s.id === winnerObj.id) {
+        return { ...s, elo: newWinnerElo };
+      }
+      if (s.id === loserObj.id) {
+        return { ...s, elo: newLoserElo };
+      }
+      return s;
+    });
+    const sortedSameGenreAfter = [...updatedGenreStudents].sort((a, b) => b.elo - a.elo);
+    const newTopId = sortedSameGenreAfter[0]?.id || null;
+
+    // Award a Crown if the winner newly claimed the top spot of their genre
+    const winnerBecameNewTop = (newTopId === winnerObj.id && previousTopId !== winnerObj.id);
+    const winnerCoronas = winnerBecameNewTop
+      ? (winnerObj.coronas || 0) + 1
+      : (winnerObj.coronas || 0);
+
     // Track state locally for progress bar
     const sortedPairKey = [winnerId, loserId].sort().join('_');
     const updatedVotedPairs = [...votedMatchups];
@@ -468,6 +495,7 @@ export default function App() {
             ...s,
             elo: newWinnerElo,
             wins: winnerWins,
+            coronas: winnerCoronas,
             actualizadoEn: getSpanishTimestamp()
           };
         }
@@ -505,7 +533,8 @@ export default function App() {
         votos_ganados: winnerWins,
         votos_perdidos: winnerObj.losses,
         perfilPhotoUrl: winnerObj.perfilPhotoUrl || '',
-        actualizadoEn: timestampStr
+        actualizadoEn: timestampStr,
+        coronas: winnerCoronas
       });
 
       await setDoc(loserRef, {
@@ -515,7 +544,8 @@ export default function App() {
         votos_ganados: loserObj.wins,
         votos_perdidos: loserLosses,
         perfilPhotoUrl: loserObj.perfilPhotoUrl || '',
-        actualizadoEn: timestampStr
+        actualizadoEn: timestampStr,
+        coronas: loserObj.coronas || 0
       });
 
       // Increment general and gender-specific votes atomically
@@ -1046,9 +1076,16 @@ export default function App() {
                                 <div className="absolute -top-1 -left-1 text-[9px]">👑</div>
                               )}
                             </div>
-                            <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block">
-                              {student.name}
-                            </span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block leading-tight">
+                                {student.name}
+                              </span>
+                              {student.coronas !== undefined && student.coronas > 0 ? (
+                                <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 mt-0.5 select-none font-sans">
+                                  👑 {student.coronas}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
  

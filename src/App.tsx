@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { db, handleFirestoreError, auth } from './firebase';
+import { db, handleFirestoreError, auth, storage } from './firebase';
+import { ref, listAll, getDownloadURL } from 'firebase/storage';
 import { 
   collection, 
   onSnapshot, 
@@ -39,6 +40,9 @@ import {
   Plus 
 } from 'lucide-react';
 
+// Cache to hold object URLs for downloaded sound files to ensure single download per session
+const crushSoundCache: Record<string, string> = {};
+
 export default function App() {
   // 1. Core States
   const [students, setStudents] = useState<Student[]>([]);
@@ -58,6 +62,13 @@ export default function App() {
     const saved = localStorage.getItem('mashMatch_voted_pairs');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [votedCrushes, setVotedCrushes] = useState<string[]>(() => {
+    const saved = localStorage.getItem('mashMatch_crushes_voted');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'crush'>('elo');
 
   // Keep references to current students and voted matchups to avoid triggering matchmaking updates when ELO or vote counts change in real-time
   const studentsRef = React.useRef<Student[]>([]);
@@ -192,6 +203,7 @@ export default function App() {
             perfilPhotoUrl: data.perfilPhotoUrl || '',
             actualizadoEn: data.actualizadoEn || '',
             coronas: data.coronas !== undefined ? Number(data.coronas) : 0,
+            crushes: data.crushes !== undefined ? Number(data.crushes) : 0,
           });
         });
 
@@ -207,6 +219,7 @@ export default function App() {
             perfilPhotoUrl: data.perfilPhotoUrl || '',
             actualizadoEn: data.actualizadoEn || '',
             coronas: data.coronas !== undefined ? Number(data.coronas) : 0,
+            crushes: data.crushes !== undefined ? Number(data.crushes) : 0,
           });
         });
 
@@ -233,6 +246,7 @@ export default function App() {
           perfilPhotoUrl: data.perfilPhotoUrl || '',
           actualizadoEn: data.actualizadoEn || '',
           coronas: data.coronas !== undefined ? Number(data.coronas) : 0,
+          crushes: data.crushes !== undefined ? Number(data.crushes) : 0,
         });
       });
 
@@ -251,17 +265,9 @@ export default function App() {
       });
     };
 
-    const hombresTopQuery = query(
-      collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres'),
-      orderBy('elo', 'desc'),
-      limit(3)
-    );
+    const hombresTopQuery = collection(db, 'INGLES1.Estudiantes', 'generos', 'hombres');
 
-    const mujeresTopQuery = query(
-      collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres'),
-      orderBy('elo', 'desc'),
-      limit(3)
-    );
+    const mujeresTopQuery = collection(db, 'INGLES1.Estudiantes', 'generos', 'mujeres');
 
     const unsubscribeHombres = onSnapshot(
       hombresTopQuery,
@@ -406,30 +412,9 @@ export default function App() {
         setRightId(candidateA.id);
       }
     } else {
-      // If all pairs are voted, reset the progress for this activeCategory in local storage to allow endless rounds
-      const otherCategoryIds = currentStudents.filter(s => s.genre !== activeCategory).map(s => s.id);
-      const cleanedMatchups = currentVoted.filter(key => {
-        const [id1, id2] = key.split('_');
-        return otherCategoryIds.includes(id1) && otherCategoryIds.includes(id2);
-      });
-      
-      setVotedMatchups(cleanedMatchups);
-      localStorage.setItem('mashMatch_voted_pairs', JSON.stringify(cleanedMatchups));
-
-      // Choose a completely random pair since we reset
-      const idxA = Math.floor(Math.random() * filtered.length);
-      let idxB = Math.floor(Math.random() * filtered.length);
-      while (idxA === idxB) {
-        idxB = Math.floor(Math.random() * filtered.length);
-      }
-      
-      if (Math.random() > 0.5) {
-        setLeftId(filtered[idxA].id);
-        setRightId(filtered[idxB].id);
-      } else {
-        setLeftId(filtered[idxB].id);
-        setRightId(filtered[idxA].id);
-      }
+      // If all pairs are voted, we set ids to null to let the UI present the Volver a votar congratulations screen.
+      setLeftId(null);
+      setRightId(null);
     }
   }, [activeCategory]);
 
@@ -446,7 +431,8 @@ export default function App() {
       
       // Only select if there are no contestants, or they belong to the wrong category.
       // ELO or wins modifications will update live in the cards, but will never trigger a pair swap.
-      if (hasNoContestants || categoryMismatch) {
+      const stats = getProgressStats();
+      if ((hasNoContestants || categoryMismatch) && stats.pending > 0) {
         selectRandomCandidates();
       }
     }
@@ -654,6 +640,135 @@ export default function App() {
     }
   };
 
+  const handleMakeCrush = async (studentId: string, categoryGenre: 'men' | 'women') => {
+    if (votedCrushes.includes(studentId)) return;
+
+    const nextCrushes = [...votedCrushes, studentId];
+    setVotedCrushes(nextCrushes);
+    localStorage.setItem('mashMatch_crushes_voted', JSON.stringify(nextCrushes));
+
+    // Play random custom sound from Firebase Storage (cached locally) or fallback synth
+    if (sfxEnabled) {
+      try {
+        // 1. Reference 'crush' folder on Firebase Storage
+        const crushFolderRef = ref(storage, 'crush');
+        const listResult = await listAll(crushFolderRef);
+
+        if (listResult.items.length === 0) {
+          throw new Error('No sounds found in /crush folder');
+        }
+
+        // 2. Choose a random sound
+        const randomItem = listResult.items[Math.floor(Math.random() * listResult.items.length)];
+        const soundKey = randomItem.name;
+
+        let audioUrl = crushSoundCache[soundKey];
+
+        if (!audioUrl) {
+          // 3. Get the HTTPS download URL
+          const downloadUrl = await getDownloadURL(randomItem);
+
+          // 4. Look up in Web Standard Cache API
+          if ('caches' in window) {
+            try {
+              const cache = await caches.open('mashmatch-audio-cache');
+              let cachedResponse = await cache.match(downloadUrl);
+
+              if (!cachedResponse) {
+                // Fetch and store in local Cache
+                const response = await fetch(downloadUrl);
+                await cache.put(downloadUrl, response.clone());
+                cachedResponse = response;
+              }
+
+              const blob = await cachedResponse.blob();
+              audioUrl = URL.createObjectURL(blob);
+              crushSoundCache[soundKey] = audioUrl;
+            } catch (cacheErr) {
+              console.warn('Cache API error, playing directly from downloadUrl:', cacheErr);
+              audioUrl = downloadUrl;
+            }
+          } else {
+            audioUrl = downloadUrl;
+          }
+        }
+
+        // 5. Play sound
+        const audio = new Audio(audioUrl);
+        await audio.play();
+
+      } catch (soundErr) {
+        console.warn('Could not load storage sound, playing beautiful default synth beep:', soundErr);
+        // Beautiful synthetic cute heart click sound fallback
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.15);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.15);
+        } catch (e) {}
+      }
+    }
+
+    // Update locally
+    setStudents(prev => {
+      const nextStudents = prev.map(s => {
+        if (s.id === studentId) {
+          return { ...s, crushes: (s.crushes || 0) + 1 };
+        }
+        return s;
+      });
+      localStorage.setItem('mashMatch_cached_students', JSON.stringify(nextStudents));
+      return nextStudents;
+    });
+
+    try {
+      const genrePath = categoryGenre === 'men' ? 'hombres' : 'mujeres';
+      const docRef = doc(db, 'INGLES1.Estudiantes', 'generos', genrePath, studentId);
+      await updateDoc(docRef, {
+        crushes: increment(1),
+        actualizadoEn: getSpanishTimestamp()
+      });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `INGLES1.Estudiantes/generos/${categoryGenre === 'men' ? 'hombres' : 'mujeres'}/${studentId}`);
+    }
+  };
+
+  const resetVotingProgress = async () => {
+    try {
+      // Increment general counter in database:
+      const votesDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'votos', 'resumen');
+      await setDoc(votesDocRef, {
+        voto_general: increment(1)
+      }, { merge: true });
+
+      // Reset local storage / state Progress for the activeCategory
+      const otherCategoryIds = students.filter(s => s.genre !== activeCategory).map(s => s.id);
+      const cleanedMatchups = votedMatchups.filter(key => {
+        const [id1, id2] = key.split('_');
+        return otherCategoryIds.includes(id1) && otherCategoryIds.includes(id2);
+      });
+      
+      setVotedMatchups(cleanedMatchups);
+      localStorage.setItem('mashMatch_voted_pairs', JSON.stringify(cleanedMatchups));
+
+      // Trigger matchmaking select
+      setTimeout(() => {
+        selectRandomCandidates();
+      }, 100);
+    } catch (err: any) {
+      console.error('Error resetting progress:', err);
+    }
+  };
+
   // Keyboard binding listener (Arrow keys)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -707,8 +822,19 @@ export default function App() {
       return b.wins - a.wins;
     });
 
-  // Get visible ranking for Live ELO Standings based on visibleCount state
-  const liveStandings = sortedStudentsOfCategory.slice(0, visibleCount);
+  const sortedStudentsForLeaderboard = leaderboardTab === 'elo'
+    ? sortedStudentsOfCategory
+    : [...students]
+        .filter(s => s.genre === activeCategory)
+        .sort((a, b) => {
+          const crushB = b.crushes || 0;
+          const crushA = a.crushes || 0;
+          if (crushB !== crushA) return crushB - crushA;
+          return b.elo - a.elo;
+        });
+
+  // Get visible ranking for Live Standings based on visibleCount state
+  const liveStandings = sortedStudentsForLeaderboard.slice(0, visibleCount);
 
   const isVotingLocked = timerFinished && (countdownConfig?.isActive ?? false);
 
@@ -981,6 +1107,34 @@ export default function App() {
                     </motion.div>
                   );
                 })()
+              ) : currentStats.pending === 0 && students.filter(s => s.genre === activeCategory).length > 1 ? (
+                // 🎉 CONGRATULATIONS / RESET COMBINATIONS LOOP (Volver a votar)
+                <motion.div
+                  key="voted-all"
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  className="w-full rounded-3xl border border-[#bc13fe]/20 bg-linear-to-b from-[#bc13fe]/5 to-black p-6 sm:p-10 backdrop-blur-md flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden"
+                >
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[180px] text-pink-500/5 select-none pointer-events-none font-sans">💖</div>
+                  
+                  <div className="inline-flex p-3 rounded-2xl bg-[#bc13fe]/10 border border-[#bc13fe]/20 mb-4 text-[#bc13fe] text-3xl animate-bounce">
+                    🎉
+                  </div>
+                  <h3 className="text-xl sm:text-3xl font-black tracking-tight text-white uppercase mb-2">
+                    ¡Votación Completada!
+                  </h3>
+                  <p className="text-gray-400 text-xs sm:text-sm max-w-md mx-auto mb-6 leading-relaxed">
+                    Has completado con éxito todas las combinaciones posibles de enfrentamientos para la categoría <strong className="text-white uppercase font-black">{activeCategory === 'women' ? 'Femenina ♀' : 'Masculina ♂'}</strong>.
+                  </p>
+                  
+                  <button
+                    onClick={resetVotingProgress}
+                    className="px-8 py-3.5 rounded-full bg-gradient-to-r from-[#ff007a] to-[#bc13fe] hover:brightness-110 active:scale-95 text-xs sm:text-sm font-black tracking-widest uppercase text-white shadow-xl hover:shadow-[0_0_25px_rgba(255,0,122,0.35)] transition-all cursor-pointer"
+                  >
+                    Volver a votar
+                  </button>
+                </motion.div>
               ) : !leftContestant || !rightContestant ? (
                 // ⏳ INITIAL LOADING BANNER
                 <motion.div 
@@ -1016,7 +1170,7 @@ export default function App() {
                     </div>
 
                     {/* Center Avatar Block with glowing ring */}
-                    <div className="flex justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
+                    <div className="flex flex-col justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
                       <div className="relative rounded-full p-2 border-2 border-[#ff007a]/20 group-hover:border-[#ff007a]/60 group-hover:scale-[1.03] transition-all duration-300 shadow-[0_0_15px_rgba(255,0,122,0.1)] group-hover:shadow-[0_0_25px_rgba(255,0,122,0.25)]">
                         <StudentAvatar 
                           id={leftContestant.id} 
@@ -1026,6 +1180,25 @@ export default function App() {
                           className="w-14 h-14 xs:w-18 xs:h-18 sm:w-24 sm:h-24 md:w-28 md:h-28" 
                         />
                       </div>
+
+                      {/* Mi Crush Button */}
+                      {!votedCrushes.includes(leftContestant.id) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleMakeCrush(leftContestant.id, activeCategory);
+                          }}
+                          className="mt-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 border border-white/10 text-[10px] md:text-xs font-black tracking-wider uppercase text-white shadow-lg active:scale-95 transition-all cursor-pointer flex items-center gap-1 hover:shadow-pink-500/20"
+                        >
+                          💖 Mi Crush
+                        </button>
+                      ) : (
+                        <span className="mt-3 text-[10px] md:text-xs font-bold text-pink-400 flex items-center gap-1 select-none font-mono">
+                          💖 Es tu crush
+                        </span>
+                      )}
                     </div>
 
                     {/* Name and Match Subtitle */}
@@ -1071,7 +1244,7 @@ export default function App() {
                     </div>
 
                     {/* Center Avatar Block with glowing ring */}
-                    <div className="flex justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
+                    <div className="flex flex-col justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
                       <div className="relative rounded-full p-2 border-2 border-[#bc13fe]/20 group-hover:border-[#bc13fe]/60 group-hover:scale-[1.03] transition-all duration-300 shadow-[0_0_15px_rgba(188,19,254,0.1)] group-hover:shadow-[0_0_25px_rgba(188,19,254,0.25)]">
                         <StudentAvatar 
                           id={rightContestant.id} 
@@ -1081,6 +1254,25 @@ export default function App() {
                           className="w-14 h-14 xs:w-18 xs:h-18 sm:w-24 sm:h-24 md:w-28 md:h-28" 
                         />
                       </div>
+
+                      {/* Mi Crush Button */}
+                      {!votedCrushes.includes(rightContestant.id) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleMakeCrush(rightContestant.id, activeCategory);
+                          }}
+                          className="mt-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 border border-white/10 text-[10px] md:text-xs font-black tracking-wider uppercase text-white shadow-lg active:scale-95 transition-all cursor-pointer flex items-center gap-1 hover:shadow-pink-500/20"
+                        >
+                          💖 Mi Crush
+                        </button>
+                      ) : (
+                        <span className="mt-3 text-[10px] md:text-xs font-bold text-pink-400 flex items-center gap-1 select-none font-mono">
+                          💖 Es tu crush
+                        </span>
+                      )}
                     </div>
 
                     {/* Name and Match Subtitle */}
@@ -1115,9 +1307,35 @@ export default function App() {
             <div className="font-sans">
               
               {/* Head / Header from Design markup */}
-              <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
-                <h3 className="text-xs font-bold tracking-[0.2em] text-white/70 uppercase">LIVE ELO STANDING</h3>
-                <div className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] font-mono text-[#bc13fe] uppercase tracking-wider animate-pulse">Syncing...</div>
+              <div className="flex flex-col mb-5 border-b border-white/5 pb-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold tracking-[0.2em] text-white/70 uppercase">TABLA DE POSICIONES</h3>
+                  <div className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] font-mono text-[#bc13fe] uppercase tracking-wider animate-pulse">Sincronizado</div>
+                </div>
+
+                {/* Switcher tabs */}
+                <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 font-sans relative">
+                  <button
+                    onClick={() => setLeaderboardTab('elo')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                      leaderboardTab === 'elo'
+                        ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
+                        : 'text-white/55 hover:text-white'
+                    }`}
+                  >
+                    🏆 Elos
+                  </button>
+                  <button
+                    onClick={() => setLeaderboardTab('crush')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                      leaderboardTab === 'crush'
+                        ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
+                        : 'text-white/55 hover:text-white'
+                    }`}
+                  >
+                    💖 Crush
+                  </button>
+                </div>
               </div>
 
               {/* Dynamic standings list with Elegant card styling */}
@@ -1215,9 +1433,11 @@ export default function App() {
                         {/* rating badge */}
                         <div className="text-right z-10 font-mono flex-shrink-0">
                           <span className="text-sm font-extrabold text-white block">
-                            {student.elo}
+                            {leaderboardTab === 'elo' ? student.elo : (student.crushes || 0)}
                           </span>
-                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold">ELO score</span>
+                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold">
+                            {leaderboardTab === 'elo' ? 'ELO score' : 'Crushes 😍'}
+                          </span>
                         </div>
                       </div>
                     );
@@ -1226,7 +1446,7 @@ export default function App() {
               </div>
 
               {/* "Ver más" button to increment visible profiles by 4 */}
-              {visibleCount < sortedStudentsOfCategory.length && (
+              {visibleCount < sortedStudentsForLeaderboard.length && (
                 <div className="mt-4 flex justify-center">
                   <button
                     onClick={() => setVisibleCount((prev) => prev + 4)}

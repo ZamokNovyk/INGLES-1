@@ -9,6 +9,7 @@ export interface Student {
   perfilPhotoUrl?: string;
   actualizadoEn?: string;
   coronas?: number;
+  crushes?: number;
 }
 
 export interface CountdownConfig {

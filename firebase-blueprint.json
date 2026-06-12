@@ -34,6 +34,10 @@
           "type": "number",
           "description": "Total number of times this student held/reached the #1 spot."
         },
+        "crushes": {
+          "type": "number",
+          "description": "Total number of times this student was marked as a crush."
+        },
         "perfilPhotoUrl": {
           "type": "string",
           "description": "Dicebear or other custom avatar path."

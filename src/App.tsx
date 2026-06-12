@@ -42,6 +42,7 @@ import {
 
 // Cache to hold object URLs for downloaded sound files to ensure single download per session
 const crushSoundCache: Record<string, string> = {};
+let remainingCrushSoundKeys: string[] = [];
 
 export default function App() {
   // 1. Core States
@@ -712,9 +713,19 @@ export default function App() {
         let audioUrl = '';
 
         if (cachedKeys.length > 0) {
-          // Play instantly from the preloaded local cache
-          const randomKey = cachedKeys[Math.floor(Math.random() * cachedKeys.length)];
-          audioUrl = crushSoundCache[randomKey];
+          // If the list of unplayed keys is empty, refill it to start a new randomized cycle
+          if (remainingCrushSoundKeys.length === 0) {
+            remainingCrushSoundKeys = [...cachedKeys];
+          }
+
+          // Pick a random key from the remaining unplayed keys
+          const randomIndex = Math.floor(Math.random() * remainingCrushSoundKeys.length);
+          const chosenKey = remainingCrushSoundKeys[randomIndex];
+
+          // Remove the selected key so it is not repeated in this cycle
+          remainingCrushSoundKeys.splice(randomIndex, 1);
+
+          audioUrl = crushSoundCache[chosenKey];
         } else {
           // Fallback context: if not fully preloaded yet (e.g. extremely fast click on initial boot), load on-the-fly
           const crushFolderRef = ref(storage, 'crush');
@@ -1215,11 +1226,10 @@ export default function App() {
                 >
                   {/* LEFT NOMINEE */}
                   <div 
-                    onClick={() => !votingInProgress && castVote(leftContestant.id, rightContestant.id)}
                     className={`group relative overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 h-[340px] xs:h-[390px] sm:h-[450px] ${
                       votingInProgress 
-                        ? 'opacity-50 pointer-events-none cursor-default' 
-                        : 'cursor-pointer hover:border-[#ff007a]/40 hover:shadow-[0_0_30px_rgba(255,0,122,0.15)] hover:scale-[1.01] active:scale-[0.99]'
+                        ? 'opacity-50 pointer-events-none' 
+                        : 'hover:border-[#ff007a]/40 hover:shadow-[0_0_30px_rgba(255,0,122,0.15)]'
                     }`}
                   >
                     {/* Pill Header Row */}
@@ -1272,6 +1282,7 @@ export default function App() {
                     <div className="w-full relative z-10 mt-3 xs:mt-5 sm:mt-6">
                       <button
                         type="button"
+                        onClick={() => !votingInProgress && castVote(leftContestant.id, rightContestant.id)}
                         className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#ff007a] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(255,0,122,0.45)] cursor-pointer select-none"
                       >
                         {votingInProgress ? 'ESPERA...' : 'VOTAR'}
@@ -1289,11 +1300,10 @@ export default function App() {
 
                   {/* RIGHT NOMINEE */}
                   <div 
-                    onClick={() => !votingInProgress && castVote(rightContestant.id, leftContestant.id)}
                     className={`group relative overflow-hidden rounded-[28px] bg-[#110c1a]/60 backdrop-blur-xl border border-white/5 p-4 sm:p-6 md:p-8 flex flex-col justify-between transition-all duration-300 h-[340px] xs:h-[390px] sm:h-[450px] ${
                       votingInProgress 
-                        ? 'opacity-50 pointer-events-none cursor-default' 
-                        : 'cursor-pointer hover:border-[#bc13fe]/40 hover:shadow-[0_0_30px_rgba(188,19,254,0.15)] hover:scale-[1.01] active:scale-[0.99]'
+                        ? 'opacity-50 pointer-events-none' 
+                        : 'hover:border-[#bc13fe]/40 hover:shadow-[0_0_30px_rgba(188,19,254,0.15)]'
                     }`}
                   >
                     {/* Pill Header Row */}
@@ -1346,6 +1356,7 @@ export default function App() {
                     <div className="w-full relative z-10 mt-3 xs:mt-5 sm:mt-6">
                       <button
                         type="button"
+                        onClick={() => !votingInProgress && castVote(rightContestant.id, leftContestant.id)}
                         className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#bc13fe] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(188,19,254,0.45)] cursor-pointer select-none"
                       >
                         {votingInProgress ? 'ESPERA...' : 'VOTAR'}

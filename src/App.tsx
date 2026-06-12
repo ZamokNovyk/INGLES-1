@@ -69,7 +69,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'crush'>('elo');
+  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'crush' | 'coronas'>('elo');
 
   // Keep references to current students and voted matchups to avoid triggering matchmaking updates when ELO or vote counts change in real-time
   const studentsRef = React.useRef<Student[]>([]);
@@ -895,14 +895,23 @@ export default function App() {
 
   const sortedStudentsForLeaderboard = leaderboardTab === 'elo'
     ? sortedStudentsOfCategory
-    : [...students]
-        .filter(s => s.genre === activeCategory)
-        .sort((a, b) => {
-          const crushB = b.crushes || 0;
-          const crushA = a.crushes || 0;
-          if (crushB !== crushA) return crushB - crushA;
-          return b.elo - a.elo;
-        });
+    : leaderboardTab === 'crush'
+      ? [...students]
+          .filter(s => s.genre === activeCategory)
+          .sort((a, b) => {
+            const crushB = b.crushes || 0;
+            const crushA = a.crushes || 0;
+            if (crushB !== crushA) return crushB - crushA;
+            return b.elo - a.elo;
+          })
+      : [...students]
+          .filter(s => s.genre === activeCategory)
+          .sort((a, b) => {
+            const coronasB = b.coronas || 0;
+            const coronasA = a.coronas || 0;
+            if (coronasB !== coronasA) return coronasB - coronasA;
+            return b.elo - a.elo;
+          });
 
   // Get visible ranking for Live Standings based on visibleCount state
   const liveStandings = sortedStudentsForLeaderboard.slice(0, visibleCount);
@@ -1387,6 +1396,7 @@ export default function App() {
                 {/* Switcher tabs */}
                 <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 font-sans relative">
                   <button
+                    id="btn-tab-elos"
                     onClick={() => setLeaderboardTab('elo')}
                     className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
                       leaderboardTab === 'elo'
@@ -1397,6 +1407,7 @@ export default function App() {
                     🏆 Elos
                   </button>
                   <button
+                    id="btn-tab-crush"
                     onClick={() => setLeaderboardTab('crush')}
                     className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
                       leaderboardTab === 'crush'
@@ -1405,6 +1416,17 @@ export default function App() {
                     }`}
                   >
                     💖 Crush
+                  </button>
+                  <button
+                    id="btn-tab-coronas"
+                    onClick={() => setLeaderboardTab('coronas')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                      leaderboardTab === 'coronas'
+                        ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
+                        : 'text-white/55 hover:text-white'
+                    }`}
+                  >
+                    👑 Coronas
                   </button>
                 </div>
               </div>
@@ -1459,15 +1481,17 @@ export default function App() {
                                 {student.name}
                               </span>
                               <div className="flex items-center gap-2 mt-0.5">
-                                {student.coronas !== undefined && student.coronas > 0 ? (
-                                  <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
-                                    👑 {student.coronas}
-                                  </span>
-                                ) : (
-                                  isAdmin && (
-                                    <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
-                                      👑 0
+                                {leaderboardTab !== 'crush' && (
+                                  student.coronas !== undefined && student.coronas > 0 ? (
+                                    <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
+                                      👑 {student.coronas}
                                     </span>
+                                  ) : (
+                                    isAdmin && (
+                                      <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
+                                        👑 0
+                                      </span>
+                                    )
                                   )
                                 )}
                                 {isAdmin && (
@@ -1503,11 +1527,23 @@ export default function App() {
  
                         {/* rating badge */}
                         <div className="text-right z-10 font-mono flex-shrink-0">
-                          <span className="text-sm font-extrabold text-white block">
-                            {leaderboardTab === 'elo' ? student.elo : (student.crushes || 0)}
+                          <span className="text-sm font-extrabold text-white flex items-center justify-end gap-1">
+                            {leaderboardTab === 'elo' ? (
+                              <span>{student.elo}</span>
+                            ) : leaderboardTab === 'crush' ? (
+                              <>
+                                <span className="text-pink-500 animate-pulse select-none">💖</span>
+                                <span>{student.crushes || 0}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-yellow-400 animate-pulse select-none">👑</span>
+                                <span>{student.coronas || 0}</span>
+                              </>
+                            )}
                           </span>
-                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold">
-                            {leaderboardTab === 'elo' ? 'ELO score' : 'Crushes 😍'}
+                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold block">
+                            {leaderboardTab === 'elo' ? 'ELO score' : leaderboardTab === 'crush' ? 'Crushes 😍' : 'Coronas 👑'}
                           </span>
                         </div>
                       </div>

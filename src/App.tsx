@@ -123,6 +123,64 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Pre-load and cache all crush sounds from Firebase Storage on mount to ensure zero lag latency on play
+  useEffect(() => {
+    const preloadSounds = async () => {
+      try {
+        console.log('Preloading all crush sounds from Firebase Storage...');
+        const crushFolderRef = ref(storage, 'crush');
+        const listResult = await listAll(crushFolderRef);
+        
+        if (listResult.items.length === 0) {
+          console.log('No sounds found in /crush folder to preload');
+          return;
+        }
+
+        await Promise.all(
+          listResult.items.map(async (item) => {
+            const soundKey = item.name;
+            try {
+              const downloadUrl = await getDownloadURL(item);
+              let audioUrl = downloadUrl;
+
+              if ('caches' in window) {
+                try {
+                  const cache = await caches.open('mashmatch-audio-cache');
+                  let cachedResponse = await cache.match(downloadUrl);
+
+                  if (!cachedResponse) {
+                    const response = await fetch(downloadUrl);
+                    await cache.put(downloadUrl, response.clone());
+                    cachedResponse = response;
+                  }
+
+                  const blob = await cachedResponse.blob();
+                  audioUrl = URL.createObjectURL(blob);
+                } catch (cacheErr) {
+                  console.warn('Cache API pre-caching error for list item:', cacheErr);
+                }
+              }
+
+              // Save in global cache to execute instantly
+              crushSoundCache[soundKey] = audioUrl;
+
+              // Pre-warm audio component
+              const audioObj = new Audio(audioUrl);
+              audioObj.preload = 'auto';
+            } catch (err) {
+              console.warn(`Failed to preload sound: ${soundKey}`, err);
+            }
+          })
+        );
+        console.log('Successfully pre-cached crush sounds:', Object.keys(crushSoundCache));
+      } catch (error) {
+        console.warn('Failed to list or preload crush sounds on start-up:', error);
+      }
+    };
+
+    preloadSounds();
+  }, []);
+
   // Play digital voting click Sound in-browser using synthetic Web Audio
   const playVoteSound = (winner: boolean) => {
     if (!sfxEnabled) return;
@@ -650,32 +708,33 @@ export default function App() {
     // Play random custom sound from Firebase Storage (cached locally) or fallback synth
     if (sfxEnabled) {
       try {
-        // 1. Reference 'crush' folder on Firebase Storage
-        const crushFolderRef = ref(storage, 'crush');
-        const listResult = await listAll(crushFolderRef);
+        const cachedKeys = Object.keys(crushSoundCache);
+        let audioUrl = '';
 
-        if (listResult.items.length === 0) {
-          throw new Error('No sounds found in /crush folder');
-        }
+        if (cachedKeys.length > 0) {
+          // Play instantly from the preloaded local cache
+          const randomKey = cachedKeys[Math.floor(Math.random() * cachedKeys.length)];
+          audioUrl = crushSoundCache[randomKey];
+        } else {
+          // Fallback context: if not fully preloaded yet (e.g. extremely fast click on initial boot), load on-the-fly
+          const crushFolderRef = ref(storage, 'crush');
+          const listResult = await listAll(crushFolderRef);
 
-        // 2. Choose a random sound
-        const randomItem = listResult.items[Math.floor(Math.random() * listResult.items.length)];
-        const soundKey = randomItem.name;
+          if (listResult.items.length === 0) {
+            throw new Error('No sounds found in /crush folder');
+          }
 
-        let audioUrl = crushSoundCache[soundKey];
-
-        if (!audioUrl) {
-          // 3. Get the HTTPS download URL
+          const randomItem = listResult.items[Math.floor(Math.random() * listResult.items.length)];
+          const soundKey = randomItem.name;
           const downloadUrl = await getDownloadURL(randomItem);
+          audioUrl = downloadUrl;
 
-          // 4. Look up in Web Standard Cache API
           if ('caches' in window) {
             try {
               const cache = await caches.open('mashmatch-audio-cache');
               let cachedResponse = await cache.match(downloadUrl);
 
               if (!cachedResponse) {
-                // Fetch and store in local Cache
                 const response = await fetch(downloadUrl);
                 await cache.put(downloadUrl, response.clone());
                 cachedResponse = response;
@@ -685,17 +744,18 @@ export default function App() {
               audioUrl = URL.createObjectURL(blob);
               crushSoundCache[soundKey] = audioUrl;
             } catch (cacheErr) {
-              console.warn('Cache API error, playing directly from downloadUrl:', cacheErr);
+              console.warn('Cache API error on on-the-fly load:', cacheErr);
               audioUrl = downloadUrl;
             }
-          } else {
-            audioUrl = downloadUrl;
           }
         }
 
-        // 5. Play sound
-        const audio = new Audio(audioUrl);
-        await audio.play();
+        if (audioUrl) {
+          const audio = new Audio(audioUrl);
+          await audio.play();
+        } else {
+          throw new Error('No audio URL resolved');
+        }
 
       } catch (soundErr) {
         console.warn('Could not load storage sound, playing beautiful default synth beep:', soundErr);

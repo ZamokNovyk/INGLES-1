@@ -69,7 +69,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'crush' | 'coronas'>('elo');
+  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'coronas'>('elo');
 
   // Keep references to current students and voted matchups to avoid triggering matchmaking updates when ELO or vote counts change in real-time
   const studentsRef = React.useRef<Student[]>([]);
@@ -895,23 +895,14 @@ export default function App() {
 
   const sortedStudentsForLeaderboard = leaderboardTab === 'elo'
     ? sortedStudentsOfCategory
-    : leaderboardTab === 'crush'
-      ? [...students]
-          .filter(s => s.genre === activeCategory)
-          .sort((a, b) => {
-            const crushB = b.crushes || 0;
-            const crushA = a.crushes || 0;
-            if (crushB !== crushA) return crushB - crushA;
-            return b.elo - a.elo;
-          })
-      : [...students]
-          .filter(s => s.genre === activeCategory)
-          .sort((a, b) => {
-            const coronasB = b.coronas || 0;
-            const coronasA = a.coronas || 0;
-            if (coronasB !== coronasA) return coronasB - coronasA;
-            return b.elo - a.elo;
-          });
+    : [...students]
+        .filter(s => s.genre === activeCategory)
+        .sort((a, b) => {
+          const coronasB = b.coronas || 0;
+          const coronasA = a.coronas || 0;
+          if (coronasB !== coronasA) return coronasB - coronasA;
+          return b.elo - a.elo;
+        });
 
   // Get visible ranking for Live Standings based on visibleCount state
   const liveStandings = sortedStudentsForLeaderboard.slice(0, visibleCount);
@@ -1259,25 +1250,6 @@ export default function App() {
                           className="w-14 h-14 xs:w-18 xs:h-18 sm:w-24 sm:h-24 md:w-28 md:h-28" 
                         />
                       </div>
-
-                      {/* Mi Crush Button */}
-                      {!votedCrushes.includes(leftContestant.id) ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleMakeCrush(leftContestant.id, activeCategory);
-                          }}
-                          className="mt-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 border border-white/10 text-[10px] md:text-xs font-black tracking-wider uppercase text-white shadow-lg active:scale-95 transition-all cursor-pointer flex items-center gap-1 hover:shadow-pink-500/20"
-                        >
-                          💖 Mi Crush
-                        </button>
-                      ) : (
-                        <span className="mt-3 text-[10px] md:text-xs font-bold text-pink-400 flex items-center gap-1 select-none font-mono">
-                          💖 Es tu crush
-                        </span>
-                      )}
                     </div>
 
                     {/* Name and Match Subtitle */}
@@ -1333,25 +1305,6 @@ export default function App() {
                           className="w-14 h-14 xs:w-18 xs:h-18 sm:w-24 sm:h-24 md:w-28 md:h-28" 
                         />
                       </div>
-
-                      {/* Mi Crush Button */}
-                      {!votedCrushes.includes(rightContestant.id) ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleMakeCrush(rightContestant.id, activeCategory);
-                          }}
-                          className="mt-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 border border-white/10 text-[10px] md:text-xs font-black tracking-wider uppercase text-white shadow-lg active:scale-95 transition-all cursor-pointer flex items-center gap-1 hover:shadow-pink-500/20"
-                        >
-                          💖 Mi Crush
-                        </button>
-                      ) : (
-                        <span className="mt-3 text-[10px] md:text-xs font-bold text-pink-400 flex items-center gap-1 select-none font-mono">
-                          💖 Es tu crush
-                        </span>
-                      )}
                     </div>
 
                     {/* Name and Match Subtitle */}
@@ -1405,17 +1358,6 @@ export default function App() {
                     }`}
                   >
                     🏆 Elos
-                  </button>
-                  <button
-                    id="btn-tab-crush"
-                    onClick={() => setLeaderboardTab('crush')}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
-                      leaderboardTab === 'crush'
-                        ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
-                        : 'text-white/55 hover:text-white'
-                    }`}
-                  >
-                    💖 Crush
                   </button>
                   <button
                     id="btn-tab-coronas"
@@ -1481,17 +1423,15 @@ export default function App() {
                                 {student.name}
                               </span>
                               <div className="flex items-center gap-2 mt-0.5">
-                                {leaderboardTab !== 'crush' && (
-                                  student.coronas !== undefined && student.coronas > 0 ? (
-                                    <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
-                                      👑 {student.coronas}
+                                {student.coronas !== undefined && student.coronas > 0 ? (
+                                  <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
+                                    👑 {student.coronas}
+                                  </span>
+                                ) : (
+                                  isAdmin && (
+                                    <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
+                                      👑 0
                                     </span>
-                                  ) : (
-                                    isAdmin && (
-                                      <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
-                                        👑 0
-                                      </span>
-                                    )
                                   )
                                 )}
                                 {isAdmin && (
@@ -1530,11 +1470,6 @@ export default function App() {
                           <span className="text-sm font-extrabold text-white flex items-center justify-end gap-1">
                             {leaderboardTab === 'elo' ? (
                               <span>{student.elo}</span>
-                            ) : leaderboardTab === 'crush' ? (
-                              <>
-                                <span className="text-pink-500 animate-pulse select-none">💖</span>
-                                <span>{student.crushes || 0}</span>
-                              </>
                             ) : (
                               <>
                                 <span className="text-yellow-400 animate-pulse select-none">👑</span>
@@ -1543,7 +1478,7 @@ export default function App() {
                             )}
                           </span>
                           <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold block">
-                            {leaderboardTab === 'elo' ? 'ELO score' : leaderboardTab === 'crush' ? 'Crushes 😍' : 'Coronas 👑'}
+                            {leaderboardTab === 'elo' ? 'ELO score' : 'Coronas 👑'}
                           </span>
                         </div>
                       </div>

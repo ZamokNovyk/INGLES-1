@@ -621,7 +621,7 @@ export default function App() {
         perfilPhotoUrl: winnerObj.perfilPhotoUrl || '',
         actualizadoEn: timestampStr,
         coronas: winnerCoronas
-      });
+      }, { merge: true });
 
       await setDoc(loserRef, {
         nombre: loserObj.name,
@@ -632,7 +632,7 @@ export default function App() {
         perfilPhotoUrl: loserObj.perfilPhotoUrl || '',
         actualizadoEn: timestampStr,
         coronas: loserObj.coronas || 0
-      });
+      }, { merge: true });
 
       if (passiveLeaderId && passiveLeaderObj) {
         const passiveRef = doc(db, 'INGLES1.Estudiantes', 'generos', winnerGenrePath, passiveLeaderId);
@@ -645,7 +645,7 @@ export default function App() {
           perfilPhotoUrl: passiveLeaderObj.perfilPhotoUrl || '',
           actualizadoEn: timestampStr,
           coronas: passiveLeaderCoronas
-        });
+        }, { merge: true });
       }
 
       // Increment general and gender-specific votes atomically

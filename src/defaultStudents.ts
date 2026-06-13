@@ -76,7 +76,7 @@ export const DEFAULT_SEED_STUDENTS: SeedStudent[] = [
     id: normalizeNameId(name),
     nombre: name,
     género: 'hombres' as const,
-    elo: 1200,
+    elo: 1000,
     votos_ganados: 0,
     votos_perdidos: 0,
     perfilPhotoUrl: getAvatarUrl(name, 'men')
@@ -85,7 +85,7 @@ export const DEFAULT_SEED_STUDENTS: SeedStudent[] = [
     id: normalizeNameId(name),
     nombre: name,
     género: 'mujeres' as const,
-    elo: 1200,
+    elo: 1000,
     votos_ganados: 0,
     votos_perdidos: 0,
     perfilPhotoUrl: getAvatarUrl(name, 'women')

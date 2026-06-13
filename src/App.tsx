@@ -256,7 +256,7 @@ export default function App() {
             id: docSnap.id,
             name: data.nombre || '',
             genre: 'men',
-            elo: data.elo !== undefined ? Number(data.elo) : 1200,
+            elo: data.elo !== undefined ? Number(data.elo) : 1000,
             wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
             losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
             perfilPhotoUrl: data.perfilPhotoUrl || '',
@@ -272,7 +272,7 @@ export default function App() {
             id: docSnap.id,
             name: data.nombre || '',
             genre: 'women',
-            elo: data.elo !== undefined ? Number(data.elo) : 1200,
+            elo: data.elo !== undefined ? Number(data.elo) : 1000,
             wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
             losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
             perfilPhotoUrl: data.perfilPhotoUrl || '',
@@ -299,7 +299,7 @@ export default function App() {
           id: docSnap.id,
           name: data.nombre || '',
           genre: categoryGenre,
-          elo: data.elo !== undefined ? Number(data.elo) : 1200,
+          elo: data.elo !== undefined ? Number(data.elo) : 1000,
           wins: data.votos_ganados !== undefined ? Number(data.votos_ganados) : 0,
           losses: data.votos_perdidos !== undefined ? Number(data.votos_perdidos) : 0,
           perfilPhotoUrl: data.perfilPhotoUrl || '',
@@ -518,8 +518,8 @@ export default function App() {
 
     // K factor = 32
     const kw = 32;
-    const newWinnerElo = Math.max(100, Math.round(winnerObj.elo + kw * (1 - eWinner)));
-    const newLoserElo = Math.max(100, Math.round(loserObj.elo + kw * (0 - eLoser)));
+    const newWinnerElo = Math.min(1000, Math.max(100, Math.round(winnerObj.elo + kw * (1 - eWinner))));
+    const newLoserElo = Math.min(1000, Math.max(100, Math.round(loserObj.elo + kw * (0 - eLoser))));
 
     // Increment Wins/Losses
     const winnerWins = winnerObj.wins + 1;

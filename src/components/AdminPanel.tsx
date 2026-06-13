@@ -192,7 +192,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
     }
 
     const confirmReset = window.confirm(
-      '¿Estás seguro de que quieres iniciar una NUEVA TEMPORADA?\n\nEsto restablecerá el ELO a 1200, victorias a 0 y derrotas de todos los participantes registrados, además de desactivar la cuenta regresiva temporal.'
+      '¿Estás seguro de que quieres iniciar una NUEVA TEMPORADA?\n\nEsto restablecerá el ELO a 1000, victorias a 0 y derrotas de todos los participantes registrados, además de desactivar la cuenta regresiva temporal.'
     );
 
     if (!confirmReset) return;
@@ -222,7 +222,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       const promises = [
         ...hombresSnap.docs.map(studentDoc => {
           return updateDoc(doc(db, 'INGLES1.Estudiantes', 'generos', 'hombres', studentDoc.id), {
-            elo: 1200,
+            elo: 1000,
             votos_ganados: 0,
             votos_perdidos: 0,
             actualizadoEn: timestampStr
@@ -230,7 +230,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
         }),
         ...mujeresSnap.docs.map(studentDoc => {
           return updateDoc(doc(db, 'INGLES1.Estudiantes', 'generos', 'mujeres', studentDoc.id), {
-            elo: 1200,
+            elo: 1000,
             votos_ganados: 0,
             votos_perdidos: 0,
             actualizadoEn: timestampStr
@@ -330,7 +330,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
       await setDoc(doc(db, 'INGLES1.Estudiantes', 'generos', genrePath, normalizedId), {
         nombre: newName.trim(),
         género: genrePath,
-        elo: 1200,
+        elo: 1000,
         votos_ganados: 0,
         votos_perdidos: 0,
         perfilPhotoUrl: getAvatarUrl(newName.trim(), newGenre),
@@ -535,7 +535,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
                 className="flex items-center justify-center space-x-2 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-amber-500/10 hover:border-amber-500/30 text-amber-400 hover:text-amber-300 font-bold text-sm transition-all cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4 flex-shrink-0" />
-                <span className="text-left leading-tight">Iniciar Nueva Temporada <span className="block text-xs font-normal opacity-70">Reset ELO a 1200</span></span>
+                <span className="text-left leading-tight">Iniciar Nueva Temporada <span className="block text-xs font-normal opacity-70">Reset ELO a 1000</span></span>
               </button>
               
               <button

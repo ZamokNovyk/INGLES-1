@@ -1,5 +1,5 @@
 {
-  "name": "INGLES Ciclo I - Ranking de belleza",
+  "name": "INGLES V - Ranking de belleza",
   "description": "Ranking interactivo con sistema de puntuación ELO, categorías de hombres y mujeres para elegir al más simpático.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

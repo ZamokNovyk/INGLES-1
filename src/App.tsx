@@ -1259,12 +1259,12 @@ export default function App() {
                       </h2>
                     </div>
 
-                    {/* Custom Action button - looks like outlined/outline normally, solid on hover! */}
+                    {/* Custom Action button - permanently colored pink */}
                     <div className="w-full relative z-10 mt-3 xs:mt-5 sm:mt-6">
                       <button
                         type="button"
                         onClick={() => !votingInProgress && castVote(leftContestant.id, rightContestant.id)}
-                        className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#ff007a] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(255,0,122,0.45)] cursor-pointer select-none"
+                        className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full bg-[#ff007a] text-white border border-transparent shadow-[0_4px_12px_rgba(255,0,122,0.3)] text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 hover:bg-[#e0006c] hover:shadow-[0_6px_20px_rgba(255,0,122,0.5)] active:scale-95 cursor-pointer select-none"
                       >
                         {votingInProgress ? 'ESPERA...' : 'VOTAR'}
                       </button>
@@ -1314,12 +1314,12 @@ export default function App() {
                       </h2>
                     </div>
 
-                    {/* Custom Action button - looks like outlined/outline normally, solid on hover! */}
+                    {/* Custom Action button - permanently colored purple */}
                     <div className="w-full relative z-10 mt-3 xs:mt-5 sm:mt-6">
                       <button
                         type="button"
                         onClick={() => !votingInProgress && castVote(rightContestant.id, leftContestant.id)}
-                        className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full border border-white/5 bg-white/[0.01] text-white/30 text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 group-hover:bg-[#bc13fe] group-hover:text-white group-hover:border-transparent group-hover:shadow-[0_6px_18px_rgba(188,19,254,0.45)] cursor-pointer select-none"
+                        className="w-full py-2 px-4 xs:py-2.5 sm:py-3.5 rounded-full bg-[#bc13fe] text-white border border-transparent shadow-[0_4px_12px_rgba(188,19,254,0.3)] text-[10px] sm:text-xs md:text-sm font-black tracking-widest uppercase transition-all duration-300 hover:bg-[#a80be6] hover:shadow-[0_6px_20px_rgba(188,19,254,0.5)] active:scale-95 cursor-pointer select-none"
                       >
                         {votingInProgress ? 'ESPERA...' : 'VOTAR'}
                       </button>

@@ -1,10 +1,10 @@
 {
-  "projectId": "ingles-i",
-  "appId": "1:3550796352:web:a990ba7bad8aa25ee61da5",
-  "apiKey": "AIzaSyBK_sB-gkyO6qmzyKLgsJX2JkQ63GXBqvQ",
-  "authDomain": "ingles-i.firebaseapp.com",
+  "projectId": "ingles-v",
+  "appId": "1:538409364303:web:cfd0be32aef9078fe6b33a",
+  "apiKey": "AIzaSyDlpCWds-2DXEAMEZaNscwSYrWnAzyt_60",
+  "authDomain": "ingles-v.firebaseapp.com",
   "firestoreDatabaseId": "(default)",
-  "storageBucket": "ingles-i.firebasestorage.app",
-  "messagingSenderId": "3550796352",
-  "measurementId": "G-6MTEQGT7FS"
+  "storageBucket": "ingles-v.firebasestorage.app",
+  "messagingSenderId": "538409364303",
+  "measurementId": "G-FEX9S5H5C0"
 }

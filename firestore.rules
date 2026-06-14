@@ -64,6 +64,18 @@ service cloud.firestore {
         request.resource.data.get('género', '') == resource.data.get('género', '') &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['elo', 'votos_ganados', 'votos_perdidos', 'actualizadoEn', 'coronas', 'crushes'])
       ));
+
+      match /versus-ganados/{opponentId} {
+        allow read: if collectionName == "INGLES1.Estudiantes";
+        allow create, update: if collectionName == "INGLES1.Estudiantes" && isValidId(opponentId) && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.contador is number;
+        allow delete: if collectionName == "INGLES1.Estudiantes" && isAdmin();
+      }
+
+      match /versus-perdidos/{opponentId} {
+        allow read: if collectionName == "INGLES1.Estudiantes";
+        allow create, update: if collectionName == "INGLES1.Estudiantes" && isValidId(opponentId) && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.contador is number;
+        allow delete: if collectionName == "INGLES1.Estudiantes" && isAdmin();
+      }
     }
 
     // 3. Collection Rules: Registered Admin Users

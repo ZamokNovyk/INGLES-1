@@ -120,12 +120,44 @@
         }
       },
       "required": ["voto_general", "voto_hombres", "voto_mujeres"]
+    },
+    "VersusRecord": {
+      "title": "VersusRecord",
+      "description": "A record of match results against a specific opponent.",
+      "type": "object",
+      "properties": {
+        "nombre": {
+          "type": "string",
+          "description": "Full name of the opponent."
+        },
+        "contador": {
+          "type": "number",
+          "description": "Number of wins or losses against this opponent."
+        },
+        "perfilPhotoUrl": {
+          "type": "string",
+          "description": "Profile picture URL of the opponent."
+        },
+        "actualizadoEn": {
+          "type": "string",
+          "description": "Spanish modification timestamp."
+        }
+      },
+      "required": ["nombre", "contador"]
     }
   },
   "firestore": {
     "INGLES1.Estudiantes/generos/{generoId}/{studentId}": {
       "schema": "Student",
       "description": "Nested collection of participating students categories."
+    },
+    "INGLES1.Estudiantes/generos/{generoId}/{studentId}/versus-ganados/{opponentId}": {
+      "schema": "VersusRecord",
+      "description": "Subcollection under a student profile tracking other students won against."
+    },
+    "INGLES1.Estudiantes/generos/{generoId}/{studentId}/versus-perdidos/{opponentId}": {
+      "schema": "VersusRecord",
+      "description": "Subcollection under a student profile tracking other students lost against."
     },
     "INGLES1.Estudiantes/registro/admin/{userId}": {
       "schema": "AdminUser",

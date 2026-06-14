@@ -69,7 +69,87 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'coronas'>('elo');
+  const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'coronas' | 'estadisticas'>('elo');
+
+  // Stats structures for head-to-head records
+  interface VersusRecord {
+    id: string;
+    nombre: string;
+    perfilPhotoUrl: string;
+    contador: number;
+    actualizadoEn?: string;
+  }
+
+  const [selectedStatsStudentId, setSelectedStatsStudentId] = useState<string>('');
+  const [versusGanados, setVersusGanados] = useState<VersusRecord[]>([]);
+  const [versusPerdidos, setVersusPerdidos] = useState<VersusRecord[]>([]);
+  const [loadingStats, setLoadingStats] = useState<boolean>(false);
+
+  // Trigger statistics loading based on selection or category change
+  useEffect(() => {
+    if (leaderboardTab !== 'estadisticas') return;
+    
+    // Auto-select first student of active category if none selected or if selected student is of wrong category
+    const categoryStudents = students.filter(s => s.genre === activeCategory);
+    let targetId = selectedStatsStudentId;
+    const currentSelected = students.find(s => s.id === targetId);
+    
+    if (!targetId || !currentSelected || currentSelected.genre !== activeCategory) {
+      if (categoryStudents.length > 0) {
+        targetId = categoryStudents[0].id;
+        setSelectedStatsStudentId(targetId);
+      } else {
+        setSelectedStatsStudentId('');
+        setVersusGanados([]);
+        setVersusPerdidos([]);
+        return;
+      }
+    }
+
+    const loadStatsData = async () => {
+      setLoadingStats(true);
+      try {
+        const studentGenrePath = activeCategory === 'men' ? 'hombres' : 'mujeres';
+
+        // Fetch versus-ganados subcollection
+        const ganadosRef = collection(db, 'INGLES1.Estudiantes', 'generos', studentGenrePath, targetId, 'versus-ganados');
+        const ganadosSnap = await getDocs(query(ganadosRef, orderBy('contador', 'desc'), limit(50)));
+        const wins: VersusRecord[] = ganadosSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            nombre: data.nombre || '',
+            perfilPhotoUrl: data.perfilPhotoUrl || '',
+            contador: data.contador !== undefined ? Number(data.contador) : 0,
+            actualizadoEn: data.actualizadoEn || ''
+          };
+        });
+
+        // Fetch versus-perdidos subcollection
+        const perdidosRef = collection(db, 'INGLES1.Estudiantes', 'generos', studentGenrePath, targetId, 'versus-perdidos');
+        const perdidosSnap = await getDocs(query(perdidosRef, orderBy('contador', 'desc'), limit(50)));
+        const losses: VersusRecord[] = perdidosSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            nombre: data.nombre || '',
+            perfilPhotoUrl: data.perfilPhotoUrl || '',
+            contador: data.contador !== undefined ? Number(data.contador) : 0,
+            actualizadoEn: data.actualizadoEn || ''
+          };
+        });
+
+        setVersusGanados(wins);
+        setVersusPerdidos(losses);
+      } catch (err) {
+        console.error('Error loading versus stats:', err);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    loadStatsData();
+  }, [selectedStatsStudentId, activeCategory, leaderboardTab, students]);
 
   // Keep references to current students and voted matchups to avoid triggering matchmaking updates when ELO or vote counts change in real-time
   const studentsRef = React.useRef<Student[]>([]);
@@ -654,6 +734,23 @@ export default function App() {
         voto_general: increment(1),
         voto_hombres: winnerGenrePath === 'hombres' ? increment(1) : increment(0),
         voto_mujeres: winnerGenrePath === 'mujeres' ? increment(1) : increment(0)
+      }, { merge: true });
+
+      // Record head-to-head versus history
+      const winnerVersusRef = doc(db, 'INGLES1.Estudiantes', 'generos', winnerGenrePath, winnerObj.id, 'versus-ganados', loserObj.id);
+      await setDoc(winnerVersusRef, {
+        nombre: loserObj.name,
+        perfilPhotoUrl: loserObj.perfilPhotoUrl || '',
+        contador: increment(1),
+        actualizadoEn: timestampStr
+      }, { merge: true });
+
+      const loserVersusRef = doc(db, 'INGLES1.Estudiantes', 'generos', loserGenrePath, loserObj.id, 'versus-perdidos', winnerObj.id);
+      await setDoc(loserVersusRef, {
+        nombre: winnerObj.name,
+        perfilPhotoUrl: winnerObj.perfilPhotoUrl || '',
+        contador: increment(1),
+        actualizadoEn: timestampStr
       }, { merge: true });
 
       // Show immediate response swap
@@ -1347,11 +1444,11 @@ export default function App() {
                 </div>
 
                 {/* Switcher tabs */}
-                <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 font-sans relative">
+                <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 font-sans relative gap-0.5">
                   <button
                     id="btn-tab-elos"
                     onClick={() => setLeaderboardTab('elo')}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1 ${
                       leaderboardTab === 'elo'
                         ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
                         : 'text-white/55 hover:text-white'
@@ -1362,7 +1459,7 @@ export default function App() {
                   <button
                     id="btn-tab-coronas"
                     onClick={() => setLeaderboardTab('coronas')}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1 ${
                       leaderboardTab === 'coronas'
                         ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
                         : 'text-white/55 hover:text-white'
@@ -1370,134 +1467,264 @@ export default function App() {
                   >
                     👑 Coronas
                   </button>
+                  <button
+                    id="btn-tab-estadisticas"
+                    onClick={() => setLeaderboardTab('estadisticas')}
+                    className={`flex-1 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1 ${
+                      leaderboardTab === 'estadisticas'
+                        ? 'bg-gradient-to-r from-[#ff007a] to-[#bc13fe] text-white shadow-lg font-black'
+                        : 'text-white/55 hover:text-white'
+                    }`}
+                  >
+                    📊 Estadísticas
+                  </button>
                 </div>
               </div>
 
-              {/* Dynamic standings list with Elegant card styling */}
-              <div className="space-y-3">
-                {liveStandings.length === 0 ? (
-                  <div className="py-12 text-center text-gray-500 text-xs font-mono leading-relaxed">
-                    Ningún participante registrado en esta sección.
+              {leaderboardTab === 'estadisticas' ? (
+                <div className="space-y-4 pt-1">
+                  {/* Selector dropdown with clean styling */}
+                  <div>
+                    <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest block mb-1">Seleccionar Estudiante:</label>
+                    <select
+                      value={selectedStatsStudentId}
+                      onChange={(e) => setSelectedStatsStudentId(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-sans text-white focus:outline-none focus:border-[#ff007a] focus:ring-1 focus:ring-[#ff007a]/30 transition-all cursor-pointer appearance-none"
+                      style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white'><path d='M8 11.5l-5-5h10l-5 5z'/></svg>")`, backgroundPosition: 'right 12px center', backgroundRepeat: 'no-repeat', backgroundSize: '10px' }}
+                    >
+                      <option value="" disabled className="bg-neutral-900 text-white/50">-- Selecciona un participante --</option>
+                      {students
+                        .filter(s => s.genre === activeCategory)
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(student => (
+                          <option key={student.id} value={student.id} className="bg-neutral-900 text-white">
+                            {student.name} (ELO: {student.elo})
+                          </option>
+                        ))
+                      }
+                    </select>
                   </div>
-                ) : (
-                  liveStandings.map((student, idx) => {
-                    const position = idx + 1;
-                    const isFirst = position === 1;
-                    const isSecond = position === 2;
-                    const isThird = position === 3;
-                    
-                    let positionColor = 'text-white/40';
-                    if (isFirst) {
-                      positionColor = 'text-[#ff007a]';
-                    } else if (isSecond) {
-                      positionColor = 'text-[#bc13fe]';
-                    } else if (isThird) {
-                      positionColor = 'text-[#00f0ff]';
-                    }
 
-                    const bgGlow = isFirst 
-                      ? 'bg-white/5 border-white/10' 
-                      : 'border-white/5';
-                    
+                  {/* Micro Profile Highlight */}
+                  {(() => {
+                    const selected = students.find(s => s.id === selectedStatsStudentId);
+                    if (!selected) return null;
                     return (
-                      <div 
-                        key={student.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border hover:bg-white/[0.04] transition-all relative overflow-hidden ${bgGlow}`}
-                      >
-                        <div className="flex items-center gap-3 relative z-10 min-w-0">
-                          {/* Position index */}
-                          <span className={`font-mono text-sm font-black ${positionColor}`}>
-                            {String(position).padStart(2, '0')}
-                          </span>
- 
-                          {/* Avatar & Name */}
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <div className="relative flex-shrink-0">
-                              <StudentAvatar id={student.id} name={student.name} genre={student.genre} perfilPhotoUrl={student.perfilPhotoUrl} className="w-8 h-8" />
-                              {isFirst && (
-                                <div className="absolute -top-1 -left-1 text-[9px]">👑</div>
-                              )}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block leading-tight">
-                                {student.name}
-                              </span>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {student.coronas !== undefined && student.coronas > 0 ? (
-                                  <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
-                                    👑 {student.coronas}
-                                  </span>
-                                ) : (
-                                  isAdmin && (
-                                    <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
-                                      👑 0
-                                    </span>
-                                  )
-                                )}
-                                {isAdmin && (
-                                  <div className="flex items-center gap-1 select-none">
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleAdminAdjustment(student, 'crowns', -1);
-                                      }}
-                                      className="w-5 h-5 flex items-center justify-center rounded bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 border border-rose-500/20 text-[10px] font-black cursor-pointer leading-none"
-                                      title="Quitar corona"
-                                    >
-                                      -
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleAdminAdjustment(student, 'crowns', 1);
-                                      }}
-                                      className="w-5 h-5 flex items-center justify-center rounded bg-yellow-500/10 hover:bg-yellow-500/20 active:scale-95 text-yellow-400 border border-yellow-500/20 text-[10px] font-black cursor-pointer leading-none"
-                                      title="Agregar corona"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                      <div className="flex items-center gap-3.5 p-3 rounded-xl bg-white/[0.02] border border-white/5 dynamic-stats-glow">
+                        <div className="relative">
+                          <StudentAvatar id={selected.id} name={selected.name} genre={selected.genre} perfilPhotoUrl={selected.perfilPhotoUrl} className="w-12 h-12" />
+                          <div className="absolute -bottom-1 -right-1 bg-[#bc13fe] text-[9.5px] p-0.5 rounded-full font-bold leading-none">📊</div>
                         </div>
- 
-                        {/* rating badge */}
-                        <div className="text-right z-10 font-mono flex-shrink-0">
-                          <span className="text-sm font-extrabold text-white flex items-center justify-end gap-1">
-                            {leaderboardTab === 'elo' ? (
-                              <span>{student.elo}</span>
-                            ) : (
-                              <>
-                                <span className="text-yellow-400 animate-pulse select-none">👑</span>
-                                <span>{student.coronas || 0}</span>
-                              </>
-                            )}
-                          </span>
-                          <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold block">
-                            {leaderboardTab === 'elo' ? 'ELO score' : 'Coronas 👑'}
-                          </span>
+                        <div className="min-w-0 flex-grow">
+                          <h5 className="font-extrabold text-white text-xs sm:text-sm truncate">{selected.name}</h5>
+                          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1">
+                            <span className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                              Elo: <span className="text-[#00f0ff] font-extrabold">{selected.elo}</span>
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-mono">•</span>
+                            <span className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                              Ganados: <span className="text-emerald-400 font-extrabold">{selected.wins}</span>
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-mono">•</span>
+                            <span className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                              Perdidos: <span className="text-rose-400 font-extrabold">{selected.losses}</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })()}
 
-              {/* "Ver más" button to increment visible profiles by 4 */}
-              {visibleCount < sortedStudentsForLeaderboard.length && (
-                <div className="mt-4 flex justify-center">
-                  <button
-                    onClick={() => setVisibleCount((prev) => prev + 4)}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold font-sans tracking-widest uppercase text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
-                  >
-                    <Plus className="w-4 h-4 text-slate-400" />
-                    <span>Ver más</span>
-                  </button>
+                  {/* Split head-to-head history columns */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    {/* Versus Ganados list */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-emerald-500/10 pb-1.5 mb-1.5">
+                        <h6 className="text-[10px] sm:text-[11px] font-black tracking-widest text-[#00ffc4] uppercase flex items-center gap-1.5">
+                          🟢 Versus Ganados ({versusGanados.length})
+                        </h6>
+                      </div>
+
+                      {loadingStats ? (
+                        <div className="py-10 text-center text-[11px] text-white/30 font-mono animate-pulse">Cargando estadísticas...</div>
+                      ) : versusGanados.length === 0 ? (
+                        <p className="text-[10.5px] text-white/30 italic py-6 font-mono leading-tight pl-1">No tiene victorias contra otros estudiantes todavía.</p>
+                      ) : (
+                        <div className="space-y-1.5 max-h-[220px] overflow-y-auto scrollbar-thin pr-1">
+                          {versusGanados.map(v => (
+                            <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 hover:bg-emerald-500/10 transition-all">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <StudentAvatar id={v.id} name={v.nombre} genre={activeCategory === 'men' ? 'women' : 'men'} perfilPhotoUrl={v.perfilPhotoUrl} className="w-6.5 h-6.5" />
+                                <span className="text-[11.5px] font-bold text-white truncate max-w-[100px] sm:max-w-[120px]">{v.nombre}</span>
+                              </div>
+                              <span className="text-[9.5px] font-mono font-black text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full select-none">
+                                {v.contador} {v.contador === 1 ? 'vez' : 'veces'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Versus Perdidos list */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-rose-500/10 pb-1.5 mb-1.5">
+                        <h6 className="text-[10px] sm:text-[11px] font-black tracking-widest text-[#ff3a59] uppercase flex items-center gap-1.5">
+                          🔴 Versus Perdidos ({versusPerdidos.length})
+                        </h6>
+                      </div>
+
+                      {loadingStats ? (
+                        <div className="py-10 text-center text-[11px] text-white/30 font-mono animate-pulse">Cargando estadísticas...</div>
+                      ) : versusPerdidos.length === 0 ? (
+                        <p className="text-[10.5px] text-white/30 italic py-6 font-mono leading-tight pl-1">No tiene derrotas contra otros estudiantes todavía.</p>
+                      ) : (
+                        <div className="space-y-1.5 max-h-[220px] overflow-y-auto scrollbar-thin pr-1">
+                          {versusPerdidos.map(v => (
+                            <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-rose-500/5 border border-rose-500/10 hover:bg-rose-500/10 transition-all">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <StudentAvatar id={v.id} name={v.nombre} genre={activeCategory === 'men' ? 'women' : 'men'} perfilPhotoUrl={v.perfilPhotoUrl} className="w-6.5 h-6.5" />
+                                <span className="text-[11.5px] font-bold text-white truncate max-w-[100px] sm:max-w-[120px]">{v.nombre}</span>
+                              </div>
+                              <span className="text-[9.5px] font-mono font-black text-rose-400 bg-rose-400/10 px-2 py-0.5 rounded-full select-none">
+                                {v.contador} {v.contador === 1 ? 'vez' : 'veces'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {/* Dynamic standings list with Elegant card styling */}
+                  <div className="space-y-3">
+                    {liveStandings.length === 0 ? (
+                      <div className="py-12 text-center text-gray-500 text-xs font-mono leading-relaxed">
+                        Ningún participante registrado en esta sección.
+                      </div>
+                    ) : (
+                      liveStandings.map((student, idx) => {
+                        const position = idx + 1;
+                        const isFirst = position === 1;
+                        const isSecond = position === 2;
+                        const isThird = position === 3;
+                        
+                        let positionColor = 'text-white/40';
+                        if (isFirst) {
+                          positionColor = 'text-[#ff007a]';
+                        } else if (isSecond) {
+                          positionColor = 'text-[#bc13fe]';
+                        } else if (isThird) {
+                          positionColor = 'text-[#00f0ff]';
+                        }
+
+                        const bgGlow = isFirst 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'border-white/5';
+                        
+                        return (
+                          <div 
+                            key={student.id}
+                            className={`flex items-center justify-between p-3 rounded-lg border hover:bg-white/[0.04] transition-all relative overflow-hidden ${bgGlow}`}
+                          >
+                            <div className="flex items-center gap-3 relative z-10 min-w-0">
+                              {/* Position index */}
+                              <span className={`font-mono text-sm font-black ${positionColor}`}>
+                                {String(position).padStart(2, '0')}
+                              </span>
+     
+                              {/* Avatar & Name */}
+                              <div className="flex items-center space-x-2.5 min-w-0">
+                                <div className="relative flex-shrink-0">
+                                  <StudentAvatar id={student.id} name={student.name} genre={student.genre} perfilPhotoUrl={student.perfilPhotoUrl} className="w-8 h-8" />
+                                  {isFirst && (
+                                    <div className="absolute -top-1 -left-1 text-[9px]">👑</div>
+                                  )}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-bold text-white text-xs sm:text-sm truncate max-w-[130px] block leading-tight">
+                                    {student.name}
+                                  </span>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {student.coronas !== undefined && student.coronas > 0 ? (
+                                      <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-0.5 select-none font-sans">
+                                        👑 {student.coronas}
+                                      </span>
+                                    ) : (
+                                      isAdmin && (
+                                        <span className="text-[10px] text-white/20 flex items-center gap-0.5 select-none font-sans">
+                                          👑 0
+                                        </span>
+                                      )
+                                    )}
+                                    {isAdmin && (
+                                      <div className="flex items-center gap-1 select-none">
+                                        <button
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleAdminAdjustment(student, 'crowns', -1);
+                                          }}
+                                          className="w-5 h-5 flex items-center justify-center rounded bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 border border-rose-500/20 text-[10px] font-black cursor-pointer leading-none"
+                                          title="Quitar corona"
+                                        >
+                                          -
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleAdminAdjustment(student, 'crowns', 1);
+                                          }}
+                                          className="w-5 h-5 flex items-center justify-center rounded bg-yellow-500/10 hover:bg-yellow-500/20 active:scale-95 text-yellow-400 border border-yellow-500/20 text-[10px] font-black cursor-pointer leading-none"
+                                          title="Agregar corona"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+     
+                            {/* rating badge */}
+                            <div className="text-right z-10 font-mono flex-shrink-0">
+                              <span className="text-sm font-extrabold text-white flex items-center justify-end gap-1">
+                                {leaderboardTab === 'elo' ? (
+                                  <span>{student.elo}</span>
+                                ) : (
+                                  <>
+                                    <span className="text-yellow-400 animate-pulse select-none">👑</span>
+                                    <span>{student.coronas || 0}</span>
+                                  </>
+                                )}
+                              </span>
+                              <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold block">
+                                {leaderboardTab === 'elo' ? 'ELO score' : 'Coronas 👑'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* "Ver más" button to increment visible profiles by 4 */}
+                  {visibleCount < sortedStudentsForLeaderboard.length && (
+                    <div className="mt-4 flex justify-center">
+                      <button
+                        onClick={() => setVisibleCount((prev) => prev + 4)}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold font-sans tracking-widest uppercase text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+                      >
+                        <Plus className="w-4 h-4 text-slate-400" />
+                        <span>Ver más</span>
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

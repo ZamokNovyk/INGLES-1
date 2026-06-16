@@ -1522,65 +1522,54 @@ export default function App() {
           </div>
 
           {/* USER EXPERIENCE RATING CARD */}
-          <div className="rounded-2xl bg-[#110c1a]/65 backdrop-blur-xl border border-white/5 p-4 relative overflow-hidden shadow-2xl" id="user-experience-rating-card">
-            {/* Ambient subtle glow underneath */}
-            <div className="absolute -right-12 -bottom-12 w-32 h-32 bg-[#bc13fe]/10 blur-[45px] rounded-full pointer-events-none"></div>
-            
-            <div className="relative z-10 space-y-3">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-                <h4 className="text-sm font-black italic uppercase tracking-tight text-white leading-tight">
-                  Califica tu experiencia
-                </h4>
+          {userVotedStar === null && (
+            <div className="rounded-2xl bg-[#110c1a]/65 backdrop-blur-xl border border-white/5 p-4 relative overflow-hidden shadow-2xl" id="user-experience-rating-card">
+              {/* Ambient subtle glow underneath */}
+              <div className="absolute -right-12 -bottom-12 w-32 h-32 bg-[#bc13fe]/10 blur-[45px] rounded-full pointer-events-none"></div>
+              
+              <div className="relative z-10 space-y-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                  <h4 className="text-sm font-black italic uppercase tracking-tight text-white leading-tight">
+                    Califica tu experiencia
+                  </h4>
 
-                {/* STAR BUTTONS */}
-                <div className="flex items-center gap-0.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
-                  {[1, 2, 3, 4, 5].map((starNum) => {
-                    const isSelected = userVotedStar !== null 
-                      ? userVotedStar >= starNum 
-                      : (tempSelectedStars !== null && tempSelectedStars >= starNum);
-                    const isHovered = userVotedStar === null && hoveredStar !== null && hoveredStar >= starNum;
-                    
-                    let starColor = 'text-white/20';
-                    if (isHovered) {
-                      starColor = 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)] scale-110';
-                    } else if (isSelected) {
-                      starColor = 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]';
-                    } else if (userVotedStar !== null || tempSelectedStars !== null) {
-                      starColor = 'text-white/10';
-                    }
+                  {/* STAR BUTTONS */}
+                  <div className="flex items-center gap-0.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
+                    {[1, 2, 3, 4, 5].map((starNum) => {
+                      const isSelected = tempSelectedStars !== null && tempSelectedStars >= starNum;
+                      const isHovered = hoveredStar !== null && hoveredStar >= starNum;
+                      
+                      let starColor = 'text-white/20';
+                      if (isHovered) {
+                        starColor = 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)] scale-110';
+                      } else if (isSelected) {
+                        starColor = 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]';
+                      } else if (tempSelectedStars !== null) {
+                        starColor = 'text-white/10';
+                      }
 
-                    return (
-                      <button
-                        key={starNum}
-                        type="button"
-                        onClick={() => userVotedStar === null && setTempSelectedStars(starNum)}
-                        onMouseEnter={() => userVotedStar === null && setHoveredStar(starNum)}
-                        onMouseLeave={() => userVotedStar === null && setHoveredStar(null)}
-                        disabled={userVotedStar !== null}
-                        className={`p-1 transition-all duration-200 ${
-                          userVotedStar !== null ? 'cursor-default' : 'hover:scale-125 cursor-pointer'
-                        }`}
-                        title={`Calificar con ${starNum} ${starNum === 1 ? 'estrella' : 'estrellas'}`}
-                      >
-                        <Star 
-                          className={`w-5.5 h-5.5 stroke-[2px] transition-colors duration-200 ${starColor}`}
-                          fill={isHovered || isSelected ? 'currentColor' : 'none'}
-                        />
-                      </button>
-                    );
-                  })}
+                      return (
+                        <button
+                          key={starNum}
+                          type="button"
+                          onClick={() => setTempSelectedStars(starNum)}
+                          onMouseEnter={() => setHoveredStar(starNum)}
+                          onMouseLeave={() => setHoveredStar(null)}
+                          className="p-1 transition-all duration-200 hover:scale-125 cursor-pointer"
+                          title={`Calificar con ${starNum} ${starNum === 1 ? 'estrella' : 'estrellas'}`}
+                        >
+                          <Star 
+                            className={`w-5.5 h-5.5 stroke-[2px] transition-colors duration-200 ${starColor}`}
+                            fill={isHovered || isSelected ? 'currentColor' : 'none'}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* Dynamic feedback / Comment input block below */}
-              {userVotedStar !== null ? (
-                <div className="text-center sm:text-right pt-1">
-                  <span className="text-[11px] text-emerald-400 font-bold block">
-                    ¡Gracias por darnos {userVotedStar} ★!
-                  </span>
-                </div>
-              ) : (
-                tempSelectedStars !== null && (
+                {/* Dynamic feedback / Comment input block below */}
+                {tempSelectedStars !== null && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1607,10 +1596,10 @@ export default function App() {
                       </button>
                     </div>
                   </motion.div>
-                )
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
 

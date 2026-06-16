@@ -37,7 +37,8 @@ import {
   Sparkles, 
   Swords, 
   ChevronRight, 
-  Plus 
+  Plus,
+  Star
 } from 'lucide-react';
 
 // Cache to hold object URLs for downloaded sound files to ensure single download per session
@@ -70,6 +71,17 @@ export default function App() {
   });
 
   const [leaderboardTab, setLeaderboardTab] = useState<'elo' | 'coronas' | 'estadisticas'>('elo');
+
+  // User experience rating state
+  const [starRatingCounts, setStarRatingCounts] = useState<Record<number, number>>({
+    1: 0, 2: 0, 3: 0, 4: 0, 5: 0
+  });
+  const [userVotedStar, setUserVotedStar] = useState<number | null>(() => {
+    const saved = localStorage.getItem('mashMatch_user_voted_rating');
+    return saved ? Number(saved) : null;
+  });
+  const [hoveredStar, setHoveredStar] = useState<number | null>(null);
+  const [submittingRating, setSubmittingRating] = useState<boolean>(false);
 
   // Stats structures for head-to-head records
   interface VersusRecord {
@@ -200,6 +212,29 @@ export default function App() {
       } else {
         setIsAdmin(false);
       }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to User Experience Rating doc in real-time
+  useEffect(() => {
+    const starsDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'experiencia', 'stars');
+    const unsubscribe = onSnapshot(starsDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setStarRatingCounts({
+          1: typeof data['1'] === 'number' ? data['1'] : 0,
+          2: typeof data['2'] === 'number' ? data['2'] : 0,
+          3: typeof data['3'] === 'number' ? data['3'] : 0,
+          4: typeof data['4'] === 'number' ? data['4'] : 0,
+          5: typeof data['5'] === 'number' ? data['5'] : 0,
+        });
+      } else {
+        setDoc(starsDocRef, { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }, { merge: true })
+          .catch(err => console.warn('Initialization of feedback stars failed:', err));
+      }
+    }, (error) => {
+      console.warn('Real-time snapshot for stars failed:', error);
     });
     return () => unsubscribe();
   }, []);
@@ -1004,6 +1039,48 @@ export default function App() {
   // Get visible ranking for Live Standings based on visibleCount state
   const liveStandings = sortedStudentsForLeaderboard.slice(0, visibleCount);
 
+  // Calculate average user rating metrics
+  const getAverageRatingStats = () => {
+    const c1 = starRatingCounts[1] || 0;
+    const c2 = starRatingCounts[2] || 0;
+    const c3 = starRatingCounts[3] || 0;
+    const c4 = starRatingCounts[4] || 0;
+    const c5 = starRatingCounts[5] || 0;
+    
+    const totalVotes = c1 + c2 + c3 + c4 + c5;
+    if (totalVotes === 0) {
+      return { average: 0, total: 0, counts: [c1, c2, c3, c4, c5] };
+    }
+    
+    const totalPoints = (1 * c1) + (2 * c2) + (3 * c3) + (4 * c4) + (5 * c5);
+    const average = totalPoints / totalVotes;
+    return {
+      average: parseFloat(average.toFixed(1)),
+      total: totalVotes,
+      counts: [c1, c2, c3, c4, c5]
+    };
+  };
+
+  const ratingStats = getAverageRatingStats();
+
+  const handleRateExperience = async (stars: number) => {
+    if (submittingRating || userVotedStar !== null) return;
+    setSubmittingRating(true);
+    try {
+      const starsDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'experiencia', 'stars');
+      await setDoc(starsDocRef, {
+        [stars.toString()]: increment(1)
+      }, { merge: true });
+      
+      localStorage.setItem('mashMatch_user_voted_rating', stars.toString());
+      setUserVotedStar(stars);
+    } catch (err) {
+      console.error('Error recording experience rating:', err);
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
   const isVotingLocked = timerFinished && (countdownConfig?.isActive ?? false);
 
   return (
@@ -1428,6 +1505,72 @@ export default function App() {
           </div>
           </div>
 
+          {/* USER EXPERIENCE RATING CARD */}
+          <div className="rounded-2xl bg-[#110c1a]/65 backdrop-blur-xl border border-white/5 p-4 relative overflow-hidden shadow-2xl flex flex-col justify-between" id="user-experience-rating-card">
+            {/* Ambient subtle glow underneath */}
+            <div className="absolute -right-12 -bottom-12 w-32 h-32 bg-[#bc13fe]/10 blur-[45px] rounded-full pointer-events-none"></div>
+            
+            <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-center justify-between gap-4 text-center sm:text-left">
+              <div>
+                <h4 className="text-sm font-black italic uppercase tracking-tight text-white">
+                  Califica tu experiencia
+                </h4>
+              </div>
+
+              {/* STAR BUTTONS */}
+              <div className="flex flex-col items-center sm:items-end gap-1.5">
+                <div className="flex items-center gap-0.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
+                  {[1, 2, 3, 4, 5].map((starNum) => {
+                    const isSelected = userVotedStar !== null && userVotedStar >= starNum;
+                    const isHovered = hoveredStar !== null && hoveredStar >= starNum;
+                    
+                    // Stars glow dynamically depending on hover/voted values
+                    let starColor = 'text-white/20';
+                    if (isHovered) {
+                      starColor = 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)] scale-110';
+                    } else if (isSelected) {
+                      starColor = 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]';
+                    } else if (userVotedStar !== null) {
+                      starColor = 'text-white/10'; // Dim unselected stars after user voted
+                    }
+
+                    return (
+                      <button
+                        key={starNum}
+                        type="button"
+                        onClick={() => handleRateExperience(starNum)}
+                        onMouseEnter={() => userVotedStar === null && setHoveredStar(starNum)}
+                        onMouseLeave={() => userVotedStar === null && setHoveredStar(null)}
+                        disabled={userVotedStar !== null || submittingRating}
+                        className={`p-1 transition-all duration-200 cursor-pointer ${
+                          userVotedStar !== null ? 'cursor-default' : 'hover:scale-125'
+                        }`}
+                        title={`Calificar con ${starNum} ${starNum === 1 ? 'estrella' : 'estrellas'}`}
+                      >
+                        <Star 
+                          className={`w-5.5 h-5.5 stroke-[2px] transition-colors duration-200 ${starColor}`}
+                          fill={isHovered || isSelected ? 'currentColor' : 'none'}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="text-right">
+                  {submittingRating ? (
+                    <span className="text-[10px] text-[#ff007a] font-mono animate-pulse block">Registrando...</span>
+                  ) : userVotedStar !== null ? (
+                    <span className="text-[10px] text-emerald-400 font-bold block">
+                      ¡Gracias por darnos {userVotedStar} ★!
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-white/30 font-mono block">Haz clic para votar</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* RIGHT COLUMN: LIVE STANDINGS LEADERBOARD (4 cols) */}
@@ -1799,6 +1942,8 @@ export default function App() {
         </div>
 
       </main>
+
+
 
 
 

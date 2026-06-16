@@ -144,6 +144,18 @@
         }
       },
       "required": ["nombre", "contador"]
+    },
+    "StarsRating": {
+      "title": "StarsRating",
+      "description": "Accumulated count for user experience ratings on a scale of 1-5.",
+      "type": "object",
+      "properties": {
+        "1": { "type": "number" },
+        "2": { "type": "number" },
+        "3": { "type": "number" },
+        "4": { "type": "number" },
+        "5": { "type": "number" }
+      }
     }
   },
   "firestore": {
@@ -174,6 +186,10 @@
     "INGLES1.Estudiantes/configuracion/votos/{documentId}": {
       "schema": "VotesCounter",
       "description": "Subcollection under configuracion documenting general and gender-specific vote statistics."
+    },
+    "INGLES1.Estudiantes/configuracion/experiencia/{documentId}": {
+      "schema": "StarsRating",
+      "description": "Subcollection tracking accumulated star feedback counts (1 to 5 stars) from users."
     }
   }
 }

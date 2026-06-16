@@ -109,5 +109,16 @@ service cloud.firestore {
       allow create, update: if isValidId(documentId) && isValidVotosDoc(request.resource.data);
       allow delete: if isAdmin() && isValidId(documentId);
     }
+
+    match /INGLES1.Estudiantes/configuracion/experiencia/{documentId} {
+      allow read: if true;
+      allow create, update: if isValidId(documentId) && 
+                            request.resource.data.get('1', 0) is number &&
+                            request.resource.data.get('2', 0) is number &&
+                            request.resource.data.get('3', 0) is number &&
+                            request.resource.data.get('4', 0) is number &&
+                            request.resource.data.get('5', 0) is number;
+      allow delete: if isAdmin() && isValidId(documentId);
+    }
   }
 }

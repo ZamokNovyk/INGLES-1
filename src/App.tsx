@@ -81,6 +81,8 @@ export default function App() {
     return saved ? Number(saved) : null;
   });
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
+  const [tempSelectedStars, setTempSelectedStars] = useState<number | null>(null);
+  const [userCommentText, setUserCommentText] = useState<string>('');
   const [submittingRating, setSubmittingRating] = useState<boolean>(false);
 
   // Stats structures for head-to-head records
@@ -1063,19 +1065,33 @@ export default function App() {
 
   const ratingStats = getAverageRatingStats();
 
-  const handleRateExperience = async (stars: number) => {
-    if (submittingRating || userVotedStar !== null) return;
+  const handleSubmitExperience = async () => {
+    if (submittingRating || userVotedStar !== null || tempSelectedStars === null) return;
     setSubmittingRating(true);
     try {
+      // 1. Increment star count on main 'stars' doc
       const starsDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'experiencia', 'stars');
       await setDoc(starsDocRef, {
-        [stars.toString()]: increment(1)
+        [tempSelectedStars.toString()]: increment(1)
       }, { merge: true });
-      
-      localStorage.setItem('mashMatch_user_voted_rating', stars.toString());
-      setUserVotedStar(stars);
+
+      // 2. If comment is provided, write it to 'comentarios' subcollection
+      const trimmedComment = userCommentText.trim();
+      if (trimmedComment !== '') {
+        const commentsColRef = collection(db, 'INGLES1.Estudiantes', 'configuracion', 'experiencia', 'stars', 'comentarios');
+        const newDocRef = doc(commentsColRef);
+        await setDoc(newDocRef, {
+          stars: tempSelectedStars,
+          comment: trimmedComment,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      // 3. Mark as voted in localStorage & state
+      localStorage.setItem('mashMatch_user_voted_rating', tempSelectedStars.toString());
+      setUserVotedStar(tempSelectedStars);
     } catch (err) {
-      console.error('Error recording experience rating:', err);
+      console.error('Error recording experience rating and comment:', err);
     } finally {
       setSubmittingRating(false);
     }
@@ -1506,44 +1522,43 @@ export default function App() {
           </div>
 
           {/* USER EXPERIENCE RATING CARD */}
-          <div className="rounded-2xl bg-[#110c1a]/65 backdrop-blur-xl border border-white/5 p-4 relative overflow-hidden shadow-2xl flex flex-col justify-between" id="user-experience-rating-card">
+          <div className="rounded-2xl bg-[#110c1a]/65 backdrop-blur-xl border border-white/5 p-4 relative overflow-hidden shadow-2xl" id="user-experience-rating-card">
             {/* Ambient subtle glow underneath */}
             <div className="absolute -right-12 -bottom-12 w-32 h-32 bg-[#bc13fe]/10 blur-[45px] rounded-full pointer-events-none"></div>
             
-            <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-center justify-between gap-4 text-center sm:text-left">
-              <div>
-                <h4 className="text-sm font-black italic uppercase tracking-tight text-white">
+            <div className="relative z-10 space-y-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                <h4 className="text-sm font-black italic uppercase tracking-tight text-white leading-tight">
                   Califica tu experiencia
                 </h4>
-              </div>
 
-              {/* STAR BUTTONS */}
-              <div className="flex flex-col items-center sm:items-end gap-1.5">
+                {/* STAR BUTTONS */}
                 <div className="flex items-center gap-0.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
                   {[1, 2, 3, 4, 5].map((starNum) => {
-                    const isSelected = userVotedStar !== null && userVotedStar >= starNum;
-                    const isHovered = hoveredStar !== null && hoveredStar >= starNum;
+                    const isSelected = userVotedStar !== null 
+                      ? userVotedStar >= starNum 
+                      : (tempSelectedStars !== null && tempSelectedStars >= starNum);
+                    const isHovered = userVotedStar === null && hoveredStar !== null && hoveredStar >= starNum;
                     
-                    // Stars glow dynamically depending on hover/voted values
                     let starColor = 'text-white/20';
                     if (isHovered) {
                       starColor = 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)] scale-110';
                     } else if (isSelected) {
                       starColor = 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]';
-                    } else if (userVotedStar !== null) {
-                      starColor = 'text-white/10'; // Dim unselected stars after user voted
+                    } else if (userVotedStar !== null || tempSelectedStars !== null) {
+                      starColor = 'text-white/10';
                     }
 
                     return (
                       <button
                         key={starNum}
                         type="button"
-                        onClick={() => handleRateExperience(starNum)}
+                        onClick={() => userVotedStar === null && setTempSelectedStars(starNum)}
                         onMouseEnter={() => userVotedStar === null && setHoveredStar(starNum)}
                         onMouseLeave={() => userVotedStar === null && setHoveredStar(null)}
-                        disabled={userVotedStar !== null || submittingRating}
-                        className={`p-1 transition-all duration-200 cursor-pointer ${
-                          userVotedStar !== null ? 'cursor-default' : 'hover:scale-125'
+                        disabled={userVotedStar !== null}
+                        className={`p-1 transition-all duration-200 ${
+                          userVotedStar !== null ? 'cursor-default' : 'hover:scale-125 cursor-pointer'
                         }`}
                         title={`Calificar con ${starNum} ${starNum === 1 ? 'estrella' : 'estrellas'}`}
                       >
@@ -1555,19 +1570,45 @@ export default function App() {
                     );
                   })}
                 </div>
-
-                <div className="text-right">
-                  {submittingRating ? (
-                    <span className="text-[10px] text-[#ff007a] font-mono animate-pulse block">Registrando...</span>
-                  ) : userVotedStar !== null ? (
-                    <span className="text-[10px] text-emerald-400 font-bold block">
-                      ¡Gracias por darnos {userVotedStar} ★!
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-white/30 font-mono block">Haz clic para votar</span>
-                  )}
-                </div>
               </div>
+
+              {/* Dynamic feedback / Comment input block below */}
+              {userVotedStar !== null ? (
+                <div className="text-center sm:text-right pt-1">
+                  <span className="text-[11px] text-emerald-400 font-bold block">
+                    ¡Gracias por darnos {userVotedStar} ★!
+                  </span>
+                </div>
+              ) : (
+                tempSelectedStars !== null && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-2 pt-2 border-t border-white/5"
+                  >
+                    <textarea
+                      value={userCommentText}
+                      onChange={(e) => setUserCommentText(e.target.value)}
+                      placeholder="Escribe tu comentario aquí (opcional)..."
+                      rows={2}
+                      maxLength={200}
+                      className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#bc13fe] transition-all resize-none min-h-[50px]"
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-white/40 font-mono">
+                        Seleccionado: <span className="text-amber-400 font-bold">{tempSelectedStars} ★</span>
+                      </span>
+                      <button
+                        onClick={handleSubmitExperience}
+                        disabled={submittingRating}
+                        className="px-4 py-1.5 bg-gradient-to-r from-[#ff007a] to-[#bc13fe] hover:from-[#ff007a]/90 hover:to-[#bc13fe]/90 active:scale-95 text-white text-xs font-black uppercase rounded-lg shadow-lg cursor-pointer transition-all disabled:opacity-50"
+                      >
+                        {submittingRating ? 'Enviando...' : 'Enviar'}
+                      </button>
+                    </div>
+                  </motion.div>
+                )
+              )}
             </div>
           </div>
 

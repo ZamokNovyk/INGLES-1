@@ -156,6 +156,26 @@
         "4": { "type": "number" },
         "5": { "type": "number" }
       }
+    },
+    "UserComment": {
+      "title": "UserComment",
+      "description": "Optional comment submitted by a user along with their star rating.",
+      "type": "object",
+      "properties": {
+        "stars": {
+          "type": "number",
+          "description": "Number of stars given from 1 to 5."
+        },
+        "comment": {
+          "type": "string",
+          "description": "Text comment from the user."
+        },
+        "createdAt": {
+          "type": "object",
+          "description": "Timestamp when matching comment was created."
+        }
+      },
+      "required": ["stars"]
     }
   },
   "firestore": {
@@ -190,6 +210,10 @@
     "INGLES1.Estudiantes/configuracion/experiencia/{documentId}": {
       "schema": "StarsRating",
       "description": "Subcollection tracking accumulated star feedback counts (1 to 5 stars) from users."
+    },
+    "INGLES1.Estudiantes/configuracion/experiencia/{documentId}/comentarios/{commentId}": {
+      "schema": "UserComment",
+      "description": "Subcollection storing optional user comments alongside their rated stars."
     }
   }
 }

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db, handleFirestoreError, auth, storage } from './firebase';
+import { signInAnonymously } from 'firebase/auth';
 import { ref, listAll, getDownloadURL } from 'firebase/storage';
 import { 
   collection, 
@@ -99,17 +100,13 @@ export default function App() {
   const [versusPerdidos, setVersusPerdidos] = useState<VersusRecord[]>([]);
   const [loadingStats, setLoadingStats] = useState<boolean>(false);
 
-  // Local unique anonymous user tracking
-  const [anonymousUserId] = useState<string>(() => {
-    const saved = localStorage.getItem('mashMatch_anonymous_user_id');
-    if (saved) return saved;
-    const newId = `anon_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
-    localStorage.setItem('mashMatch_anonymous_user_id', newId);
-    return newId;
-  });
+  // Firebase Auth anonymous user ID tracking
+  const [anonymousUserId, setAnonymousUserId] = useState<string>('');
 
   const registerOrUpdateUserOnVote = async () => {
-    const isRegistered = localStorage.getItem('mashMatch_registered_user') === 'true';
+    if (!anonymousUserId) return;
+    const isRegisteredKey = `mashMatch_registered_user_${anonymousUserId}`;
+    const isRegistered = localStorage.getItem(isRegisteredKey) === 'true';
     const userDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'users', anonymousUserId);
     try {
       if (!isRegistered) {
@@ -119,7 +116,7 @@ export default function App() {
           creadoEn: serverTimestamp(),
           ultimaEntrada: serverTimestamp()
         }, { merge: true });
-        localStorage.setItem('mashMatch_registered_user', 'true');
+        localStorage.setItem(isRegisteredKey, 'true');
       } else {
         await setDoc(userDocRef, {
           ultimaEntrada: serverTimestamp()
@@ -132,8 +129,10 @@ export default function App() {
 
   // Mount session entry log
   useEffect(() => {
+    if (!anonymousUserId) return;
     const checkAndLogUserSession = async () => {
-      const isRegistered = localStorage.getItem('mashMatch_registered_user') === 'true';
+      const isRegisteredKey = `mashMatch_registered_user_${anonymousUserId}`;
+      const isRegistered = localStorage.getItem(isRegisteredKey) === 'true';
       if (isRegistered) {
         try {
           const userDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'users', anonymousUserId);
@@ -244,10 +243,11 @@ export default function App() {
 
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
-  // Listen to Auth State to identify if the logged-in user is an admin
+  // Listen to Auth State to identify if the logged-in user is an admin or sign in anonymously
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
+        setAnonymousUserId(user.uid);
         try {
           const adminDocRef = doc(db, 'INGLES1.Estudiantes', 'registro', 'admin', user.uid);
           const adminDocSnap = await getDoc(adminDocRef);
@@ -262,6 +262,11 @@ export default function App() {
         }
       } else {
         setIsAdmin(false);
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          console.error('Error signing in anonymously:', error);
+        }
       }
     });
     return () => unsubscribe();

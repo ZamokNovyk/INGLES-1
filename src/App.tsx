@@ -99,6 +99,55 @@ export default function App() {
   const [versusPerdidos, setVersusPerdidos] = useState<VersusRecord[]>([]);
   const [loadingStats, setLoadingStats] = useState<boolean>(false);
 
+  // Local unique anonymous user tracking
+  const [anonymousUserId] = useState<string>(() => {
+    const saved = localStorage.getItem('mashMatch_anonymous_user_id');
+    if (saved) return saved;
+    const newId = `anon_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
+    localStorage.setItem('mashMatch_anonymous_user_id', newId);
+    return newId;
+  });
+
+  const registerOrUpdateUserOnVote = async () => {
+    const isRegistered = localStorage.getItem('mashMatch_registered_user') === 'true';
+    const userDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'users', anonymousUserId);
+    try {
+      if (!isRegistered) {
+        await setDoc(userDocRef, {
+          id: anonymousUserId,
+          nombre: "Usuario Anónimo",
+          creadoEn: serverTimestamp(),
+          ultimaEntrada: serverTimestamp()
+        }, { merge: true });
+        localStorage.setItem('mashMatch_registered_user', 'true');
+      } else {
+        await setDoc(userDocRef, {
+          ultimaEntrada: serverTimestamp()
+        }, { merge: true });
+      }
+    } catch (error) {
+      console.warn('Anonymous user registration failed:', error);
+    }
+  };
+
+  // Mount session entry log
+  useEffect(() => {
+    const checkAndLogUserSession = async () => {
+      const isRegistered = localStorage.getItem('mashMatch_registered_user') === 'true';
+      if (isRegistered) {
+        try {
+          const userDocRef = doc(db, 'INGLES1.Estudiantes', 'configuracion', 'users', anonymousUserId);
+          await setDoc(userDocRef, {
+            ultimaEntrada: serverTimestamp()
+          }, { merge: true });
+        } catch (error) {
+          console.warn('Silent session entry log failed:', error);
+        }
+      }
+    };
+    checkAndLogUserSession();
+  }, [anonymousUserId]);
+
   // Trigger statistics loading based on selection or category change
   useEffect(() => {
     if (leaderboardTab !== 'estadisticas') return;
@@ -790,6 +839,9 @@ export default function App() {
         actualizadoEn: timestampStr
       }, { merge: true });
 
+      // Log anonymous user activity
+      await registerOrUpdateUserOnVote();
+
       // Show immediate response swap
       selectRandomCandidates();
     } catch (err: any) {
@@ -942,6 +994,9 @@ export default function App() {
         crushes: increment(1),
         actualizadoEn: getSpanishTimestamp()
       });
+
+      // Log anonymous user activity
+      await registerOrUpdateUserOnVote();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `INGLES1.Estudiantes/generos/${categoryGenre === 'men' ? 'hombres' : 'mujeres'}/${studentId}`);
     }
@@ -1090,6 +1145,9 @@ export default function App() {
       // 3. Mark as voted in localStorage & state
       localStorage.setItem('mashMatch_user_voted_rating', tempSelectedStars.toString());
       setUserVotedStar(tempSelectedStars);
+
+      // Log anonymous user activity
+      await registerOrUpdateUserOnVote();
     } catch (err) {
       console.error('Error recording experience rating and comment:', err);
     } finally {

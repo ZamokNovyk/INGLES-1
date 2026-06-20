@@ -176,6 +176,30 @@
         }
       },
       "required": ["stars"]
+    },
+    "AnonymousUser": {
+      "title": "Anonymous User",
+      "description": "Information of anonymous voters tracking their activity.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique generated user ID."
+        },
+        "nombre": {
+          "type": "string",
+          "description": "Name of the anonymous user (e.g., 'Usuario Anónimo')."
+        },
+        "creadoEn": {
+          "type": "object",
+          "description": "Timestamp of initial registration."
+        },
+        "ultimaEntrada": {
+          "type": "object",
+          "description": "Timestamp of the user's last entry into the app."
+        }
+      },
+      "required": ["id", "nombre", "creadoEn", "ultimaEntrada"]
     }
   },
   "firestore": {
@@ -214,6 +238,10 @@
     "INGLES1.Estudiantes/configuracion/experiencia/{documentId}/comentarios/{commentId}": {
       "schema": "UserComment",
       "description": "Subcollection storing optional user comments alongside their rated stars."
+    },
+    "INGLES1.Estudiantes/configuracion/users/{userId}": {
+      "schema": "AnonymousUser",
+      "description": "Subcollection under configuracion documenting anonymous users and their activity."
     }
   }
 }

@@ -130,5 +130,16 @@ service cloud.firestore {
         allow update, delete: if isAdmin();
       }
     }
+
+    match /INGLES1.Estudiantes/configuracion/users/{userId} {
+      allow read: if isAdmin() || isValidId(userId);
+      allow create, update: if isValidId(userId) &&
+                            request.resource.data.id == userId &&
+                            request.resource.data.nombre is string &&
+                            request.resource.data.nombre.size() > 0 &&
+                            request.resource.data.nombre.size() <= 60 &&
+                            request.resource.data.ultimaEntrada != null;
+      allow delete: if isAdmin();
+    }
   }
 }

@@ -32,7 +32,9 @@ import {
   RefreshCw, 
   RotateCcw, 
   Check, 
-  AlertTriangle 
+  AlertTriangle,
+  Users,
+  Clock
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -54,6 +56,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
   // Form states for Countdown
   const [targetDateInput, setTargetDateInput] = useState<string>('');
   const [countdownActive, setCountdownActive] = useState<boolean>(false);
+
+  // Anonymous Users list states
+  interface DbAnonymousUser {
+    id: string;
+    nombre: string;
+    creadoEn?: any;
+    ultimaEntrada?: any;
+  }
+  const [anonymousUsers, setAnonymousUsers] = useState<DbAnonymousUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const fetchAnonymousUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const usersColRef = collection(db, 'INGLES1.Estudiantes', 'configuracion', 'users');
+      const snapshot = await getDocs(usersColRef);
+      const list: DbAnonymousUser[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          nombre: data.nombre || 'Usuario Anónimo',
+          creadoEn: data.creadoEn,
+          ultimaEntrada: data.ultimaEntrada
+        });
+      });
+      // Sort users by ultimaEntrada (most recent first)
+      list.sort((a, b) => {
+        const timeA = a.ultimaEntrada?.seconds || 0;
+        const timeB = b.ultimaEntrada?.seconds || 0;
+        return timeB - timeA;
+      });
+      setAnonymousUsers(list);
+    } catch (error) {
+      console.error('Error fetching anonymous users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const formatTimestamp = (ts: any) => {
+    if (!ts) return 'N/A';
+    try {
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleString('es-ES', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch (e) {
+      return 'Fecha Inválida';
+    }
+  };
+
+  // Fetch users when admin logs in
+  React.useEffect(() => {
+    if (isAdminLoggedIn) {
+      fetchAnonymousUsers();
+    }
+  }, [isAdminLoggedIn]);
 
   // Initialize form options if config exists
   React.useEffect(() => {
@@ -516,7 +581,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ students, countdownConfi
             </div>
           </form>
 
-          {/* SEC 3: Danger Zone */}
+          {/* SEC 3: Registered Anonymous Users and Entry activity list */}
+          <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#bc13fe]" />
+                Usuarios Registrados (Votantes Anónimos)
+              </h3>
+              <button
+                type="button"
+                onClick={fetchAnonymousUsers}
+                disabled={loadingUsers}
+                className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 hover:text-white transition-all transition-colors"
+                title="Refrescar usuarios"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingUsers ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            <p className="text-gray-400 text-xs mb-3 font-sans leading-relaxed">
+              Votantes registrados automáticamente al emitir su primer voto. Se muestra la marca temporal de su registro inicial y la última vez que entraron a la plataforma.
+            </p>
+
+            {loadingUsers ? (
+              <div className="flex flex-col items-center justify-center py-8 text-white/50 space-y-2">
+                <RefreshCw className="w-6 h-6 animate-spin text-[#bc13fe]" />
+                <span className="text-xs font-mono">Cargando usuarios...</span>
+              </div>
+            ) : anonymousUsers.length === 0 ? (
+              <div className="text-center py-8 text-white/30 border border-dashed border-white/10 rounded-xl text-xs font-sans">
+                Aún no hay usuarios anónimos registrados.
+              </div>
+            ) : (
+              <div className="max-h-60 overflow-y-auto rounded-xl border border-white/10 custom-scrollbar divide-y divide-white/5 bg-black/40">
+                {anonymousUsers.map((user) => (
+                  <div key={user.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs hover:bg-white/2 transition-all">
+                    <div>
+                      <div className="font-bold text-white flex items-center gap-1.5 flex-wrap">
+                        <span>{user.nombre}</span>
+                        <span className="text-[10px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded font-mono font-normal">
+                          {user.id}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-white/50 mt-1 flex items-center gap-1">
+                        <span className="text-white/30">Registrado el:</span>
+                        <span>{formatTimestamp(user.creadoEn)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex sm:flex-col sm:items-end justify-between items-center sm:justify-start gap-1 p-1 bg-[#bc13fe]/5 sm:bg-transparent rounded-lg border border-[#bc13fe]/10 sm:border-0 px-2 sm:px-0">
+                      <span className="text-[10px] text-white/40 block font-mono">ÚLTIMA VEZ ENTRÓ:</span>
+                      <span className="font-semibold text-[#bc13fe] flex items-center gap-1 text-[11px]">
+                        <Clock className="w-3.5 h-3.5 stroke-[2px]" />
+                        {formatTimestamp(user.ultimaEntrada)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* SEC 4: Danger Zone */}
           <div className="p-5 rounded-2xl bg-rose-500/5 border border-rose-500/20">
             <h3 className="text-lg font-bold text-rose-400 mb-4 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-rose-400" />

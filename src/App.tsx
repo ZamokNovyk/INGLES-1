@@ -1485,12 +1485,8 @@ export default function App() {
                         : 'hover:border-[#ff007a]/40 hover:shadow-[0_0_30px_rgba(255,0,122,0.15)]'
                     }`}
                   >
-                    {/* Pill Header Row */}
-                    <div className="flex justify-between items-center w-full relative z-10">
-                      <div className="px-3 py-1 rounded-full bg-black/60 border border-[#ff007a]/20 font-mono text-[9px] sm:text-[10px] md:text-xs font-black select-none text-[#ff007a] tracking-wider">
-                        VOTAR <span className="text-[#ff007a]/70">[A]</span>
-                      </div>
-                    </div>
+                    {/* Pill Header Row - Removed Indicator */}
+                    <div className="h-6" />
 
                     {/* Center Avatar Block with glowing ring */}
                     <div className="flex flex-col justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
@@ -1540,12 +1536,8 @@ export default function App() {
                         : 'hover:border-[#bc13fe]/40 hover:shadow-[0_0_30px_rgba(188,19,254,0.15)]'
                     }`}
                   >
-                    {/* Pill Header Row */}
-                    <div className="flex justify-between items-center w-full relative z-10">
-                      <div className="px-3 py-1 rounded-full bg-black/60 border border-[#bc13fe]/20 font-mono text-[9px] sm:text-[10px] md:text-xs font-black select-none text-[#bc13fe] tracking-wider">
-                        VOTAR <span className="text-[#bc13fe]/70">[D]</span>
-                      </div>
-                    </div>
+                    {/* Pill Header Row - Removed Indicator */}
+                    <div className="h-6" />
 
                     {/* Center Avatar Block with glowing ring */}
                     <div className="flex flex-col justify-center items-center w-full my-2 xs:my-4 sm:my-5 relative z-10">
